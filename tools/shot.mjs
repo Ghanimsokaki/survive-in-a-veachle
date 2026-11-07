@@ -156,4 +156,46 @@ G.interiorSelected = 'fridge';
 for (let i = 0; i < 90; i++) G.frame(1 / 60);
 shot('07-interior');
 
+// --- 8. the new building modules (bathroom, window, campfire, dish, barrel, bench, hive)
+G.exitBuild();
+G.enterZone(1);
+G.buildInv = {};
+G.car.grid.cells = new Array(G.car.grid.cells.length).fill(null);
+G.car.interior = new Array(6).fill(null);
+G.recompute();
+let ni = 0;
+for (const kind of ['bathroom', 'window', 'campfire', 'internet', 'watertank', 'crafttable', 'dronehive', 'floor', 'wall']) {
+  const pick = RECIPES.find((r) => r.cat === 'build' && r.out.spec.kind === kind);
+  if (!pick) continue;
+  G.buildInv[pick.id] = 1;
+  G.buildSelected = pick.id;
+  G.placeAtCell(ni);
+  ni += 1;
+}
+G.recompute();
+G.car.hull = G.car.hullMax;
+G.toggleBuild();
+G.mouse.x = 900; G.mouse.y = 360;
+for (let i = 0; i < 60; i++) G.frame(1 / 60);
+shot('08-new-modules');
+G.exitBuild();
+
+// --- 9. anomaly tornado at night, anchor deployed
+G.enterZone(2);
+G.car.hull = G.car.hullMax;
+G.car.anchors = 2;
+G.spawnTornado();
+G.night = 0.9;
+G.car.anchorT = 30;
+G.tornado.life = 60;
+G.car.angle = -Math.PI * 0.5;
+for (let i = 0; i < 30; i++) G.frame(1 / 60);
+for (let i = 0; i < 8; i++) {
+  G.tornado.x = G.car.x + Math.cos(G.car.angle) * 700 + (i % 2 ? 60 : -60);
+  G.tornado.y = G.car.y + Math.sin(G.car.angle) * 700;
+  G.tornado.life = 60;
+  G.frame(1 / 60);
+}
+shot('09-anomaly-tornado');
+
 console.log('done');

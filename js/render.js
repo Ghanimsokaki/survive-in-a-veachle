@@ -31,12 +31,13 @@ const ENEMY_COLORS = {
   heavy: { shirt: '#166534', pants: '#14351f', skin: '#b07a55', hair: '#111', helmet: '#14532d' },
 };
 
-export const faceStats = { static: 0, dyn: 0, drawn: 0 };
+export const faceStats = { static: 0, dyn: 0, drawn: 0, visible: 0, polys: 0 };
 
 let staticZone = null;
 let staticFaces = [];
 let theme = THEMES.java;
 let colorCache = new Map();
+let LIGHT_T = 0; // animated-light clock, refreshed each draw()
 const L = LIGHT;
 
 // ------------------------------------------------------------------ helpers
@@ -510,6 +511,85 @@ function buildModule(out, G, m, wx, wz, yaw) {
       }
       break;
     }
+    case 'bathroom':
+      // porcelain tub + shower curtain rod + mirror wall
+      box(out, wx, y0 + 0.26, wz, 1.14, 0.5, 0.78, '#e7edf3', rot);
+      box(out, wx, y0 + 0.53, wz, 1.0, 0.08, 0.64, '#bfe6f2', rot);
+      box(out, wx, y0 + 0.03, wz, 1.18, 0.09, 0.82, '#94a3b8', rot);
+      box(out, wx - 0.5 * Math.cos(rot), y0 + 1.15, wz - 0.5 * Math.sin(rot), 0.05, 1.2, 0.05, '#cbd5e1', rot);
+      box(out, wx + 0.5 * Math.cos(rot), y0 + 1.15, wz + 0.5 * Math.sin(rot), 0.05, 1.2, 0.05, '#cbd5e1', rot);
+      box(out, wx, y0 + 1.16, wz, 1.0, 0.52, 0.04, '#dbeafe', rot, 0, 0, { alpha: 0.6 });
+      box(out, wx, y0 + 0.95, wz - 0.42 * Math.cos(rot), 0.5, 0.42, 0.05, '#a5f3fc', rot);
+      break;
+    case 'window':
+      // windowed wall: frame + glass + sill
+      box(out, wx, y0 + 0.5, wz, 1.24, 1.0, 0.26, '#8b949f', rot);
+      box(out, wx, y0 + 0.62, wz, 1.0, 0.7, 0.3, '#7dd3fc', rot, 0, 0, { alpha: 0.55 });
+      box(out, wx, y0 + 0.62, wz, 0.08, 0.7, 0.33, '#d1d5db', rot);
+      box(out, wx, y0 + 0.62, wz, 1.0, 0.07, 0.33, '#d1d5db', rot);
+      box(out, wx, y0 + 1.02, wz, 1.3, 0.09, 0.4, '#e2e8f0', rot);
+      break;
+    case 'campfire': {
+      // stone ring + logs + animated flames
+      box(out, wx, y0 + 0.06, wz, 0.9, 0.12, 0.9, '#3f3f46', rot);
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * TAU;
+        box(out, wx + Math.cos(a) * 0.44, y0 + 0.14, wz + Math.sin(a) * 0.44, 0.2, 0.18, 0.2, '#57534e');
+      }
+      box(out, wx - 0.1, y0 + 0.2, wz, 0.7, 0.12, 0.12, '#7c4a20', 0.6);
+      box(out, wx + 0.1, y0 + 0.2, wz, 0.7, 0.12, 0.12, '#6b3f1c', -0.7);
+      const fl = (LIGHT_T || 0);
+      const fh = 0.34 + Math.sin(fl * 9) * 0.06;
+      box(out, wx, y0 + 0.3 + fh / 2, wz, 0.34, fh, 0.34, '#f97316');
+      box(out, wx, y0 + 0.3 + fh / 2 + 0.06, wz, 0.18, fh * 0.8, 0.18, '#fde68a');
+      break;
+    }
+    case 'internet': {
+      // satellite dish on a mast + blinking router
+      box(out, wx, y0 + 0.1, wz, 0.5, 0.2, 0.5, '#334155', rot);
+      box(out, wx, y0 + 1.0, wz, 0.12, 2.0, 0.12, '#94a3b8', rot);
+      const dishY = y0 + 2.0;
+      for (let i = 0; i < 3; i++) {
+        const r = 0.62 - i * 0.16;
+        box(out, wx, dishY + i * 0.1, wz + i * 0.05, r * 2, 0.05, r * 1.1, i % 2 ? '#e2e8f0' : '#38bdf8', rot, -0.5);
+      }
+      box(out, wx, y0 + 0.42, wz + 0.34 * Math.cos(rot), 0.34, 0.24, 0.14, '#0f172a', rot);
+      box(out, wx, y0 + 0.52, wz + 0.34 * Math.cos(rot), 0.07, 0.07, 0.07,
+        (Math.sin((LIGHT_T || 0) * 7) > 0 ? '#22d3ee' : '#0e7490'), rot);
+      break;
+    }
+    case 'watertank':
+      // blue barrel with hoops and a tap
+      prismY(out, wx, y0, wz, 0.52, 1.0, '#1d4ed8', 10);
+      box(out, wx, y0 + 0.72, wz, 1.08, 0.09, 1.08, '#1e40af', rot);
+      box(out, wx, y0 + 0.3, wz, 1.06, 0.07, 1.06, '#1e40af', rot);
+      box(out, wx, y0 + 1.02, wz, 0.72, 0.08, 0.72, '#3b82f6', rot);
+      box(out, wx, y0 + 0.18, wz + 0.55 * Math.cos(rot), 0.12, 0.12, 0.18, '#cbd5e1', rot);
+      break;
+    case 'crafttable': {
+      // workbench with a saw, hammer and blueprints
+      box(out, wx, y0 + 0.52, wz, 1.16, 0.12, 0.86, '#8b5e34', rot);
+      for (const [ox, oz] of [[-0.46, -0.3], [0.46, -0.3], [-0.46, 0.3], [0.46, 0.3]]) {
+        box(out, wx + ox * Math.cos(rot) - oz * Math.sin(rot), y0 + 0.26,
+          wz + ox * Math.sin(rot) + oz * Math.cos(rot), 0.1, 0.52, 0.1, '#6b4526');
+      }
+      box(out, wx, y0 + 0.62, wz, 0.22, 0.05, 0.48, '#cbd5e1', rot);
+      box(out, wx - 0.32 * Math.cos(rot), y0 + 0.66, wz - 0.32 * Math.sin(rot), 0.09, 0.09, 0.4, '#a16207', rot);
+      box(out, wx + 0.36 * Math.cos(rot), y0 + 0.62, wz + 0.36 * Math.sin(rot), 0.34, 0.02, 0.28, '#60a5fa', rot);
+      box(out, wx, y0 + 0.3, wz, 0.9, 0.05, 0.6, '#6b4526', rot);
+      break;
+    }
+    case 'dronehive':
+      // hex hive rack with a spinning rotor on top
+      prismY(out, wx, y0, wz, 0.6, 0.9, '#312e81', 6);
+      box(out, wx, y0 + 0.62, wz, 1.24, 0.1, 1.24, '#4338ca', rot);
+      box(out, wx, y0 + 0.2, wz, 1.1, 0.5, 0.16, '#1e1b4b', rot);
+      box(out, wx, y0 + 0.2, wz + 0.3 * Math.cos(rot), 0.14, 0.14, 0.14, '#a5b4fc', rot);
+      const spin = (LIGHT_T || 0) * 12;
+      box(out, wx, y0 + 1.06, wz, 0.9 * Math.abs(Math.cos(spin)) + 0.16, 0.05, 0.12, '#818cf8', rot + spin * 0.2);
+      box(out, wx, y0 + 1.06, wz, 0.12, 0.05, 0.9 * Math.abs(Math.sin(spin)) + 0.16, '#818cf8', rot + spin * 0.2);
+      box(out, wx, y0 + 0.95, wz, 0.26, 0.14, 0.26, '#6366f1', rot);
+      break;
     default: {
       const tint = {
         workbench: '#b45309', advbench: '#0e7490', nanolab: '#6d28d9',
@@ -855,6 +935,90 @@ function buildBuildOverlay(G, out) {
 }
 
 // ------------------------------------------------------------------ draw pipeline
+// ------------------------------------------------------- anomaly tornado mesh
+function buildTornado(G, out) {
+  const t = G.tornado;
+  const cx = t.x * S;
+  const cz = t.y * S;
+  const H = 11.5;
+  const BANDS = 10;
+  const SIDES = 16;
+  const spin = G.t * 2.4;
+  const radAt = (f) => 1.15 + Math.pow(f, 1.1) * 4.1;
+  const offAt = (f) => {
+    const w = 0.3 + f * 1.5;
+    return { x: Math.sin(spin * 0.6 + f * 3.6) * w, z: Math.cos(spin * 0.5 + f * 3.0) * w };
+  };
+  // funnel wall: translucent panels, lit by a swirl phase so it reads as spinning
+  const pt = (f, a, k = 1) => {
+    const o = offAt(f);
+    const r = radAt(f) * k;
+    return { x: cx + o.x + Math.cos(a) * r, y: 0.15 + f * H, z: cz + o.z + Math.sin(a) * r };
+  };
+  const LEVELS = 9;
+  for (let i = 0; i < LEVELS; i++) {
+    const f0 = i / LEVELS, f1 = (i + 1) / LEVELS;
+    const ph0 = spin * (2.2 - f0 * 1.3) + f0 * 2.1;
+    const ph1 = spin * (2.2 - f1 * 1.3) + f1 * 2.1;
+    for (let j = 0; j < SIDES; j++) {
+      const a0 = (j / SIDES) * TAU, a1 = ((j + 1) / SIDES) * TAU;
+      const lit = 0.5 + 0.5 * Math.cos(a0 + ph0 - spin * 1.7);
+      const col = lit > 0.74 ? '#e2e8f0' : lit > 0.46 ? '#94a3b8' : '#475569';
+      out.push({
+        p: [pt(f0, a0 + ph0), pt(f0, a1 + ph0), pt(f1, a1 + ph1), pt(f1, a0 + ph1)],
+        c: col, a: 0.2 + lit * 0.26, ds: true,
+      });
+    }
+    // bright rim every other level gives the stacked-vortex look
+    if (i % 2 === 0) {
+      const ph = ph0;
+      for (let j = 0; j < SIDES; j++) {
+        const a0 = (j / SIDES) * TAU + ph, a1 = ((j + 1) / SIDES) * TAU + ph;
+        out.push({
+          p: [pt(f0, a0, 0.99), pt(f0, a1, 0.99), pt(f0, a1, 1.06), pt(f0, a0, 1.06)],
+          c: '#e2e8f0', a: 0.5, ds: true,
+        });
+      }
+    }
+  }
+  // wispy dust streaks climbing the outside of the funnel
+  for (let i = 0; i < 10; i++) {
+    const f = (i / 10 + (G.t * 0.18) % 0.1) % 1;
+    const o = offAt(f);
+    const a = spin * 2.0 + i * 2.1;
+    const r0 = radAt(f) * 1.1, r1 = radAt(Math.min(1, f + 0.16)) * 1.12;
+    const o1 = offAt(Math.min(1, f + 0.16));
+    out.push({
+      p: [
+        { x: cx + o.x + Math.cos(a) * r0, y: 0.2 + f * H, z: cz + o.z + Math.sin(a) * r0 },
+        { x: cx + o.x + Math.cos(a + 0.5) * r0, y: 0.2 + f * H, z: cz + o.z + Math.sin(a + 0.5) * r0 },
+        { x: cx + o1.x + Math.cos(a + 0.6) * r1, y: 0.2 + Math.min(1, f + 0.16) * H, z: cz + o1.z + Math.sin(a + 0.6) * r1 },
+        { x: cx + o1.x + Math.cos(a + 0.1) * r1, y: 0.2 + Math.min(1, f + 0.16) * H, z: cz + o1.z + Math.sin(a + 0.1) * r1 },
+      ],
+      c: '#cbd5e1', a: 0.26, ds: true,
+    });
+  }
+  // dust skirt on the ground
+  disc(out, cx, 0.06, cz, 6.4, '#4b5563', 20, 0.32);
+  disc(out, cx, 0.14, cz, 4.0, '#6b7280', 18, 0.4);
+  disc(out, cx, 0.22, cz, 2.2, '#94a3b8', 16, 0.4);
+  // storm cloud cap
+  const co = offAt(1);
+  disc(out, cx + co.x, 0.2 + H, cz + co.z, radAt(1) * 1.5, '#334155', 18, 0.55);
+  disc(out, cx + co.x, 0.9 + H, cz + co.z, radAt(1) * 1.1, '#475569', 16, 0.45);
+  // orbiting debris shards
+  for (let i = 0; i < 16; i++) {
+    const f = (i / 16) * 0.9;
+    const o = offAt(f);
+    const a = spin * 2.2 + i * 1.7;
+    const r = radAt(f) * 1.08;
+    const size = 0.3 + (1 - f) * 0.55;
+    box(out, cx + o.x + Math.cos(a) * r, 0.3 + f * H, cz + o.z + Math.sin(a) * r,
+      size, size * 0.65, size,
+      i % 3 === 0 ? '#7c4a20' : (i % 3 === 1 ? '#475569' : '#cbd5e1'), a);
+  }
+}
+
 function drawSky(ctx, view, theme2) {
   const horizon = view.h / 2 - Camera3D.focal * Math.tan(Camera3D.pitch);
   const g = ctx.createLinearGradient(0, 0, 0, Math.max(60, horizon));
@@ -898,6 +1062,44 @@ function drawWeather(G, ctx, view) {
     }
     ctx.fillStyle = 'rgba(10,18,28,0.22)';
     ctx.fillRect(0, 0, view.w, view.h);
+    ctx.restore();
+  }
+
+  // night falls: cold blue wash + vignette (Dead-Rails-style pressure)
+  const night = clamp(G.night || 0, 0, 1);
+  if (night > 0.02) {
+    ctx.fillStyle = `rgba(9,15,34,${(night * 0.42).toFixed(3)})`;
+    ctx.fillRect(0, 0, view.w, view.h);
+    const vg = ctx.createRadialGradient(view.w / 2, view.h * 0.52, view.h * 0.22, view.w / 2, view.h * 0.52, view.h * 0.92);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, `rgba(2,6,16,${(night * 0.58).toFixed(3)})`);
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, view.w, view.h);
+  }
+
+  // tornado dust storm: swirling wind streaks across the whole screen
+  if (G.tornado) {
+    const t = G.t * 700;
+    ctx.save();
+    ctx.lineWidth = 1.4;
+    for (let i = 0; i < 90; i++) {
+      const x = ((i * 421 + t * 1.6) % (view.w + 240)) - 120;
+      const y = ((i * 263 + t * 0.5) % (view.h + 160)) - 80;
+      const len = 16 + (i % 5) * 9;
+      ctx.strokeStyle = i % 4 === 0 ? 'rgba(226,232,240,0.20)' : 'rgba(148,163,184,0.14)';
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + len, y + len * 0.22);
+      ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(30,41,59,0.14)';
+    ctx.fillRect(0, 0, view.w, view.h);
+    // rare lightning flashes inside the storm
+    const fl = Math.max(0, Math.sin(G.t * 3.1) * Math.sin(G.t * 1.73) - 0.94) / 0.06;
+    if (fl > 0) {
+      ctx.fillStyle = `rgba(203,225,255,${Math.min(0.2, fl * 0.2).toFixed(3)})`;
+      ctx.fillRect(0, 0, view.w, view.h);
+    }
     ctx.restore();
   }
 }
@@ -1050,9 +1252,12 @@ function renderFaces(ctx, faces, b, view) {
     visible.push(f);
   }
   visible.sort((a, b2) => b2._d - a._d);
+  faceStats.visible = visible.length;
+  faceStats.polys = 0;
   for (const f of visible) {
     const pts = projectPoly(f.p, b, view);
     if (!pts) continue;
+    faceStats.polys++;
     let shade = 1;
     if (f.n) {
       const nd = f.n.x * L.x + f.n.y * L.y + f.n.z * L.z;
@@ -1113,6 +1318,15 @@ function drawOverlays(g, ctx, view) {
     ctx.lineTo(p.x + 5, p.y - 9);
     ctx.closePath();
     ctx.fill();
+  }
+  // anomaly tornado label
+  if (g.tornado) {
+    const tx = g.tornado.x * S, tz = g.tornado.z * S;
+    const d = Math.hypot(tx - cam.x, tz - cam.z);
+    if (d < 150) {
+      label(ctx, view, { x: tx, y: 13.4, z: tz }, `ANOMALY TORNADO · ${Math.ceil(d / 12)}m`,
+        d < 45 ? '#f87171' : '#7dd3fc');
+    }
   }
   // enemy hp / boss label
   for (const e of g.enemies) {
@@ -1244,6 +1458,7 @@ export function draw(g, ctx, view) {
     staticFaces = buildStatic(g.zone);
     colorCache = new Map();
   }
+  LIGHT_T = g.t;
   const cam = Camera3D;
   // screen shake
   const shake = Math.min(g.shake || 0, 14);
@@ -1289,6 +1504,7 @@ export function draw(g, ctx, view) {
     if (Math.hypot(d.x * S - camX, d.y * S - camZ) < 85) buildDock(g, dyn, d);
   }
   buildExit(g, dyn);
+  if (g.tornado) buildTornado(g, dyn);
   buildBuildOverlay(g, dyn);
   finalizeFaces(dyn);
   for (const f of dyn) faces.push(f);
@@ -1340,6 +1556,19 @@ export function drawMinimap(G2, mctx, mw, mh) {
       mctx.fillRect(ox + r.npc.x * s - 2, oy + r.npc.y * s - 2, 4, 4);
     }
   }
+  // anomaly tornado blip
+  if (G2.tornado) {
+    mctx.strokeStyle = '#7dd3fc';
+    mctx.lineWidth = 1.4;
+    mctx.beginPath();
+    mctx.arc(ox + G2.tornado.x * s, oy + G2.tornado.y * s, 6, 0, TAU);
+    mctx.stroke();
+    mctx.beginPath();
+    mctx.arc(ox + G2.tornado.x * s, oy + G2.tornado.y * s, 2.6, 0, TAU);
+    mctx.fillStyle = '#e0f2fe';
+    mctx.fill();
+  }
+
   // player
   if (G2.player && G2.player.onFoot) {
     mctx.fillStyle = '#fde68a';

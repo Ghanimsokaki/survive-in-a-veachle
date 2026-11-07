@@ -2,7 +2,7 @@
 
 **Jakarta → Washington D.C. — build a house on your car, loot the ruins of the world, and survive the army.**
 
-A complete **3D** survival / driving / base-building game that runs in the browser with no build step and no external assets. Everything — the 1,002 recipes, the ruined towns, the survivors, the whole route — is generated locally.
+A complete **3D** survival / driving / base-building game that runs in the browser with no build step and no external assets. Everything — the 1,068 recipes, the ruined towns, the survivors, the whole route — is generated locally.
 
 The world is rendered with a hand-written perspective renderer (painter-sorted flat-shaded low-poly geometry on a plain 2D canvas — no WebGL, no libraries), the player is a fully articulated character rig, and the car is a house you can build **on the roof and inside the cabin**.
 
@@ -29,11 +29,12 @@ npm start                         # same thing
 | left click (hold) | shoot |
 | `E` | loot crate · talk to survivor · open dock · depart |
 | `G` | get out of the car / climb back in |
+| `Y` | drop an **anomaly anchor** — pins the car for 30s (use it against the tornado) |
 | `T` | depart to the next zone (at the DEPART gate) |
 | `B` | build mode — pick a module, click a roof cell, right-click to remove |
 | `Tab` | in build mode: switch between the **roof** and the **cabin interior** |
 | build tray swatches | repaint the car (six presets, free) |
-| `C` | crafting book (1,002 recipes) |
+| `C` | crafting book (1,068 recipes) |
 | `N` | crew |
 | `I` | satchel (weapons, consumables, drones) |
 | `M` | route map |
@@ -45,7 +46,7 @@ npm start                         # same thing
 1. **Build a home on the car.** The roof is a 6×4 grid. Floors, walls, storage, beds, solar panels, med bays, drone bays, gardens, turrets and more slot into it. Every module raises your **🏠 home score**, and structural modules actually change the car's stats: armour, material cap, crew berths, power, repair rate, drone slots.
    **And the inside counts too:** press `Tab` in build mode for the x-ray interior view, where **six mount points in the cabin** take furniture (cot, stove, pantry, water tank, fridge, lamp, radio, bench, med cabinet, safe, plant, heater). Furnishing is a real upgrade — see *Inside the cabin* below.
 2. **Loot the ruins.** Every zone is dotted with broken houses (or floating wrecks at sea) with glowing containers. Purpler crates are richer. Occasionally a **survivor** is hiding inside.
-3. **Craft.** The book contains **1,002 recipes** split across weapons, turrets, drones, building modules, consumables and vehicle upgrades, in five tiers, gated by stations you build on the car: *Field Kit → Workbench → Advanced Workshop → Nano Lab*. Search it, filter by category/tier, or show only what you can build right now.
+3. **Craft.** The book contains **1,068 recipes** split across weapons, turrets, drones, building modules, consumables and vehicle upgrades, in five tiers, gated by stations you build on the car: *Field Kit → Workbench → Advanced Workshop → Nano Lab*. Search it, filter by category/tier, or show only what you can build right now.
 4. **Fight.** Raiders, brutes, gunner cars, pirates, and eventually the US Army. Turrets and drones fire automatically; you aim with the mouse. Shots eat ammo — without ammo you fire weak improvised rounds.
 5. **Recruit survivors.** Each one has a role and a price:
    - 🎒 Scavenger +35% loot
@@ -106,6 +107,49 @@ The build tray also carries six **paint presets** (Bay Blue, Rust Red, Jungle, S
 
 Comfort feeds straight into the **home score** (×3), so a furnished interior is part of "the best car house". Furniture is saved with the run and can be pulled out again for half the parts.
 
+## The anomaly — night, storms and Dead-Rails pressure
+
+Every zone runs a **day/night clock** (165 s). Past 60% of the cycle the sky turns cold and dark —
+the renderer paints a night wash and a vignette over the whole scene. When the light goes, an
+**🌪️ Anomaly Tornado** forms and starts hunting the car.
+
+- It is a real entity, not a background effect: it drifts toward you at `54 + tier·5` px/s,
+  **drags the car** toward its core from 950 px away, and shreds hull at 46/s on contact.
+- It has **900 + 260·tier HP**. Turrets retarget it automatically, your bullets hit for 1.3×,
+  and killing it pays `180 + 60·tier` salvage bonds with an **ANOMALY DISPELLED** banner.
+  If it survives its 36 s life the storm simply passes and you patch the hull.
+- **The answer is an anchor.** Buy one at a dock (🪙 380), loot one, or craft a **Ground Anchor**
+  utility, then press `Y`: 30 s of being pinned to the ground, no drag, and contact damage cut to
+  **28%**. Anchors are stored on the car and survive saves. Running dry is the whole tension.
+
+The screen also gets storm-streaks, dust, occasional lightning and a live tornado HP bar with the
+anchor state, plus a blip on the minimap.
+
+## Timed crafting (99 Nights in the Forest)
+
+Crafting is **not instant** any more. Pressing *CRAFT* starts a job of
+`max(0.3, (0.5 + 0.42·tier) / (1 + craftSpeed))` seconds, shown as a progress bar under the hull
+gauge with the remaining time. One job at a time — the materials are paid up front, and the output
+lands when the bar fills. Building stations physically shortens the job:
+
+| Module | craft speed |
+| --- | --- |
+| 🔥 Campfire | +35% |
+| 🧰 Crafting Table | +25% |
+| 🛰️ Internet Dish | +10% (and +4% craft discount, 1200 radar) |
+
+## New home modules
+
+Seven new module families joined the build tray (and 60+ new recipes):
+
+- **🚿 Bathroom** — tub, shower curtain and mirror; comfort
+- **🪟 Window Wall** — glass and sill, real armour for the cost of a wall
+- **🔥 Campfire** — light and the cheapest craft-speed bonus
+- **🛰️ Internet Dish** — satellite mast, radar reach and craft discount
+- **🛢️ Water Barrel** — repair rate and a bigger material cap
+- **🧰 Crafting Table** — a station *and* +25% craft speed
+- **🛸 Drone Hive** — two more drone slots in one module
+
 ## Systems under the hood
 
 ```
@@ -113,7 +157,7 @@ index.html            layout, HUD skeleton, panels
 css/style.css         all styling (dark/amber post-apocalypse theme)
 js/util.js            math, RNG, rounding, tiny WebAudio SFX
 js/data.js            resources, loot tables, enemy blueprints, crew roles, shop
-js/recipes.js         procedural recipe book — 1,002 unique recipes
+js/recipes.js         procedural recipe book — 1,068 unique recipes
 js/world.js           10 zones, procedural ruins/wrecks/decor/landmarks
 js/geo3d.js           low-poly primitives (boxes, prisms, cones, discs, rings)
 js/camera3d.js        perspective camera, projection, mouse→world ray picking

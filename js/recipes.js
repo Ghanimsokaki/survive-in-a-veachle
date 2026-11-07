@@ -200,6 +200,13 @@ const BUILDINGS = [
   { n: 'Ram Spikes',     kind: 'spikes',   icon: '⚔️', score: 6, ram: 12 },
   { n: 'Shield Plate',   kind: 'shield',   icon: '🛡️', score: 10, armor: 9 },
   { n: 'Trophy Case',    kind: 'trophy',   icon: '🏆', score: 20 },
+  { n: 'Bathroom',       kind: 'bathroom', icon: '🚿', score: 9, repair: 0.8, bonus: { comfort: 2 } },
+  { n: 'Window Wall',    kind: 'window',   icon: '🪟', score: 6, armor: 4 },
+  { n: 'Campfire',       kind: 'campfire', icon: '🔥', score: 6, bonus: { craftSpeed: 0.35, light: 2 } },
+  { n: 'Internet Dish',  kind: 'internet', icon: '🛰️', score: 12, radar: 1200, bonus: { craftDiscount: 0.04, craftSpeed: 0.1 } },
+  { n: 'Water Barrel',   kind: 'watertank',icon: '🛢️', score: 7, repair: 0.8, cap: 120 },
+  { n: 'Crafting Table', kind: 'crafttable', icon: '🧰', score: 11, station: 1, bonus: { craftSpeed: 0.25 } },
+  { n: 'Drone Hive',     kind: 'dronehive', icon: '🐝', score: 18, droneCap: 2 },
 ];
 
 const BUILD_QUALITY = ['Scrap', 'Wooden', 'Iron', 'Steel', 'Reinforced', 'Composite', 'Nano', 'Golden'];
@@ -258,6 +265,8 @@ function buildDesc(s) {
   if (s.droneCap) bits.push('+1 drone slot');
   if (s.ram) bits.push(`+${s.ram} ram damage`);
   if (s.craftDiscount) bits.push(`-${Math.round(s.craftDiscount * 100)}% craft cost`);
+  if (s.craftSpeed) bits.push(`+${Math.round(s.craftSpeed * 100)}% craft speed`);
+  if (s.comfort) bits.push(`+${s.comfort} comfort`);
   if (!bits.length) bits.push(`+${s.score} home score`);
   return bits.join(' · ');
 }
@@ -276,6 +285,7 @@ const UTILITIES = [
   { n: 'Smoke Screen',    icon: '💨', effect: 'smoke',    unit: 1,   label: 'enemies lose aim', dur: 8 },
   { n: 'Nano Swarm',      icon: '✨', effect: 'repair',   unit: 140, label: 'major hull repair' },
   { n: 'Drone Repair Kit',icon: '🤖', effect: 'droneRepair', unit: 1, label: 'restore all drones' },
+  { n: 'Ground Anchor',   icon: '⚓', effect: 'anchor',   unit: 1,   label: 'tornado anchor charge' },
 ];
 
 UTILITIES.forEach((fam, fi) => {

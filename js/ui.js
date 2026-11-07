@@ -31,6 +31,9 @@ export const UI = {
       buildTray: $('buildTray'), trayItems: $('trayItems'), trayHint: $('trayHint'), buildExit: $('buildExit'),
       trayRoof: $('trayRoof'), trayInterior: $('trayInterior'), trayPaints: $('trayPaints'),
       waveBox: $('waveBox'), waveLabel: $('waveLabel'), waveFill: $('waveFill'),
+      craftBox: $('craftBox'), craftFill: $('craftFill'), craftLabel: $('craftLabel'), craftIcon: $('craftIcon'),
+      anchorChip: $('anchorChip'), anchorCount: $('anchorCount'),
+      tornadoBox: $('tornadoBox'), tornadoFill: $('tornadoFill'), tornadoHint: $('tornadoHint'),
       bossBox: $('bossBox'), bossFill: $('bossFill'), weaponLine: $('weaponLine'),
       menu: $('menu'), saveMeta: $('saveMeta'), endScreen: $('endScreen'),
       endTitle: $('endTitle'), endSub: $('endSub'), endStats: $('endStats'),
@@ -140,6 +143,34 @@ export const UI = {
         r.val.textContent = fmt(v);
         r.chip.classList.toggle('maxed', v >= G.stats.cap);
       }
+    }
+
+    // timed crafting + anchor + tornado
+    const cr = G.crafting;
+    if (cr) {
+      this.el.craftBox.classList.remove('hidden');
+      this.el.craftFill.style.width = (G.craftProgress() * 100).toFixed(1) + '%';
+      this.el.craftIcon.textContent = cr.icon || '🛠️';
+      this.el.craftLabel.textContent = `${cr.name} ${Math.max(0, cr.total - cr.t).toFixed(1)}s`;
+    } else if (!this.el.craftBox.classList.contains('hidden')) {
+      this.el.craftBox.classList.add('hidden');
+    }
+    const anchors = car.anchors || 0;
+    const anchorTxt = car.anchorT > 0 ? `ANCHORED ${Math.ceil(car.anchorT)}s` : `${anchors} · Y`;
+    if (l.anchor !== anchorTxt) {
+      l.anchor = anchorTxt;
+      this.el.anchorChip.innerHTML = `⚓ <b>${anchorTxt}</b>`;
+      this.el.anchorChip.classList.remove('hidden');
+      this.el.anchorChip.classList.toggle('held', car.anchorT > 0);
+    }
+    if (G.tornado) {
+      this.el.tornadoBox.classList.remove('hidden');
+      this.el.tornadoFill.style.width = Math.max(0, (G.tornado.hp / G.tornado.maxHp) * 100).toFixed(1) + '%';
+      this.el.tornadoHint.textContent = car.anchorT > 0
+        ? `⚓ anchored for ${Math.ceil(car.anchorT)}s — keep shooting`
+        : anchors > 0 ? 'Press Y to anchor (30s of protection)' : 'NO ANCHORS — craft a Ground Anchor!';
+    } else if (!this.el.tornadoBox.classList.contains('hidden')) {
+      this.el.tornadoBox.classList.add('hidden');
     }
 
     // prompt
@@ -510,10 +541,20 @@ export const UI = {
           </ul>
         </div>
         <div class="help-block">
+          <h3>Anomaly tornado</h3>
+          <ul>
+            <li>Every zone gets a <b>night</b>. When the sky turns, an <b>🌪️ Anomaly Tornado</b> forms and hunts the car.</li>
+            <li>It <b>drags the car</b> toward it and shreds the hull if it touches you.</li>
+            <li>Carry an <b>⚓ Anomaly Anchor</b> (buy at a dock, loot, or craft a <i>Ground Anchor</i>) and press <b>Y</b>: 30 seconds pinned to the ground, damage cut to 28%.</li>
+            <li>You can also fight it — turrets and your gun chew through its 900+ HP. Killing it pays salvage bonds.</li>
+          </ul>
+        </div>
+        <div class="help-block">
           <h3>Craft 1,000+ recipes</h3>
           <ul>
             <li><b>C</b> opens the crafting book. Search, filter by category or tier.</li>
             <li>Weapons equip instantly · turrets &amp; rooms go to the build tray · drones deploy automatically · consumables go to the satchel.</li>
+            <li>Crafting is <b>timed</b> — a progress bar runs at the top left. A <b>🔥 Campfire</b>, <b>🧰 Crafting Table</b> or <b>🛰️ Internet Dish</b> speeds it up, so building a real workroom matters.</li>
             <li>Turrets drain <b>power</b>. Solar panels and batteries keep them firing.</li>
             <li>Loot, craft, sell surplus at docks for cash.</li>
           </ul>
@@ -621,6 +662,9 @@ export const UI = {
       this.el.prompt.classList.add('hidden');
       this.el.buffs.classList.add('hidden');
       this.el.waveBox.classList.add('hidden');
+      this.el.craftBox.classList.add('hidden');
+      this.el.anchorChip.classList.add('hidden');
+      this.el.tornadoBox.classList.add('hidden');
     }
   },
 

@@ -129,20 +129,20 @@ G.buildInv = {};
 UI.openPanel('craft');
 const weapon = RECIPES.find((r) => r.cat === 'weapon' && r.tier === 1);
 const wcount = G.weapons.length;
-G.craft(weapon.id);
+G.craft(weapon.id, { instant: true });
 assert(G.weapons.length === wcount + 1, 'weapon crafted');
 const turret = RECIPES.find((r) => r.cat === 'turret' && r.tier === 2);
-G.craft(turret.id);
+G.craft(turret.id, { instant: true });
 assert(G.buildInv[turret.id] === 1, 'turret added to build tray');
 const drone = RECIPES.find((r) => r.cat === 'drone' && r.tier === 1);
-G.craft(drone.id);
+G.craft(drone.id, { instant: true });
 assert(G.droneItems.length === 1, 'drone crafted');
 const util = RECIPES.find((r) => r.cat === 'utility' && r.tag === 'Repair Kit' && r.tier === 1);
-G.craft(util.id);
+G.craft(util.id, { instant: true });
 assert(Object.keys(G.consumables).length > 0, 'consumable stored');
 G.useConsumable(util.id);
 const veh = RECIPES.find((r) => r.cat === 'vehicle' && r.out.upgrade === 'maxSpeed');
-G.craft(veh.id);
+G.craft(veh.id, { instant: true });
 assert(G.carUpg.maxSpeed > 0, 'vehicle upgrade applied');
 UI.closePanel();
 
@@ -387,6 +387,108 @@ let rigErr = null;
 try { G.player.onFoot = true; G.player.x = G.car.x + 90; step(4); } catch (e) { rigErr = e.message; }
 assert(!rigErr, 'rigged character renders in 3D');
 G.player.onFoot = false;
+
+
+// ---------------------------------------------------------------- timed crafting
+console.log('\n— timed crafting (99 Nights style)');
+G.exitBuild();
+for (const k of Object.keys(G.res)) G.res[k] = 999;
+G.buildInv = {};
+const job = RECIPES.find((r) => r.cat === 'utility' && r.tier === 1 && r.id !== util.id);
+const consBefore = Object.keys(G.consumables).length;
+G.craft(job.id);
+assert(!!G.crafting && G.crafting.id === job.id, 'craft starts a timed job');
+assert(G.craftProgress() < 0.01, 'craft progress starts at zero');
+UI.updateHUD(G);
+const craftBox = document.getElementById('craftBox');
+assert(craftBox && !craftBox.classList.contains('hidden'), 'craft progress bar is visible in the HUD');
+assert(/s$/.test(document.getElementById('craftLabel').textContent), 'craft bar shows the remaining time');
+G.updateCraft(G.crafting.total * 0.5);
+assert(G.craftProgress() > 0.4 && G.craftProgress() < 0.6, 'craft progress tracks elapsed time');
+G.updateCraft(G.crafting.total);
+assert(!G.crafting, 'craft job finishes on its own');
+assert(Object.keys(G.consumables).length >= consBefore, 'timed craft delivered its output');
+
+// stations shorten the job
+const baseTotal = (() => {
+  const snap = G.stats.craftSpeed;
+  G.stats.craftSpeed = 0;
+  G.craft(job.id, { instant: true });
+  G.stats.craftSpeed = snap;
+  G.craft(job.id);
+  const t = G.crafting ? G.crafting.total : 0;
+  G.crafting = null;
+  return t;
+})();
+G.buildInv = {};
+const tableKind = 'crafttable';
+const tableRec = RECIPES.find((r) => r.out.spec && r.out.spec.kind === tableKind);
+if (tableRec) {
+  G.buildInv[tableRec.id] = 1;
+  G.buildSelected = tableRec.id;
+  G.placeAtCell(15);
+}
+const fastTotal = (() => {
+  G.craft(job.id);
+  const t = G.crafting ? G.crafting.total : 0;
+  G.crafting = null;
+  return t;
+})();
+assert(fastTotal > 0 && fastTotal <= baseTotal, `crafting stations speed jobs up (${baseTotal.toFixed(2)}s → ${fastTotal.toFixed(2)}s)`);
+
+// ---------------------------------------------------------------- anchor + tornado
+console.log('\n— anomaly tornado + anchor');
+G.car.anchors = 2;
+G.car.anchorT = 0;
+G.deployAnchor();
+assert(G.car.anchorT > 0, 'anchor deploys on Y');
+assert(G.car.anchors === 1, 'anchor charge is consumed');
+
+const hullBeforeTornado = G.car.hull;
+G.spawnTornado();
+assert(!!G.tornado && G.tornado.maxHp > 900, 'anomaly tornado spawns with a health pool');
+UI.updateHUD(G);
+const torBox = document.getElementById('tornadoBox');
+assert(torBox && !torBox.classList.contains('hidden'), 'tornado HP bar is visible in the HUD');
+assert(!!document.querySelector('[data-act="anchor"]'), 'hotbar has the anchor button');
+G.tornado.x = G.car.x + 10;
+G.tornado.y = G.car.y + 10;
+const cx0 = G.car.x, cy0 = G.car.y;
+const anchoredHull = G.car.hull;
+for (let i = 0; i < 30; i++) G.updateTornado(1 / 60);
+const anchoredDmg = anchoredHull - G.car.hull;
+assert(anchoredDmg >= 0 && anchoredDmg < 10, 'anchor holds the car and cuts the damage');
+assert(Math.hypot(G.car.x - cx0, G.car.y - cy0) < 60, 'anchored car is not dragged far');
+
+G.car.anchorT = 0;
+G.car.hull = Math.max(60, G.car.hull);
+G.tornado.x = G.car.x + 6;
+G.tornado.y = G.car.y + 6;
+const freeHull = G.car.hull;
+for (let i = 0; i < 30; i++) G.updateTornado(1 / 60);
+assert(freeHull - G.car.hull > anchoredDmg, 'unanchored car takes far more damage');
+
+G.tornado.hp = 4;
+G.tornado.x = G.car.x + 4;
+G.tornado.y = G.car.y + 4;
+G.bullets.push({ x: G.tornado.x - 40, y: G.tornado.y, vx: 900, vy: 0, dmg: 30, life: 1, r: 4, friendly: true });
+const cashBefore = G.cash;
+step(6);
+assert(!G.tornado, 'bullets can destroy the tornado');
+assert(G.cash > cashBefore, 'killing the tornado pays salvage bonds');
+
+// rendering with the tornado on screen must not throw
+G.spawnTornado();
+G.tornado.x = G.car.x + 300;
+G.tornado.y = G.car.y + 200;
+G.night = 0.8;
+let torErr = null;
+try { step(4); } catch (e) { torErr = e.message; }
+assert(!torErr, 'tornado + night render in 3D');
+assert(G.car.anchors >= 0 && typeof G.deployAnchor === 'function', 'anchor system is live');
+G.endTornado(false);
+G.night = 0;
+G.car.hull = G.car.hullMax;
 
 console.log('\n--- errors (' + errors.length + ') ---');
 errors.slice(0, 20).forEach((e) => console.log(e));

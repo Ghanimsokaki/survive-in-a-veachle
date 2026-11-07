@@ -12,6 +12,7 @@ import { Camera3D } from './camera3d.js';
 import { UI } from './ui.js';
 
 const SAVE_KEY = 'how_save_v2';
+const escName = (x) => String(x).replace(/[<>&]/g, '');
 const DEFAULT_WEAPON = {
   name: 'Salvaged Pipe Pistol', icon: '🔫',
   stats: { dmg: 8, rate: 4.2, speed: 840, spread: 0.06, pellets: 1, splash: 0, chain: false, range: 800 },
@@ -36,6 +37,8 @@ export const G = {
   finale: null, buffs: { dmg: 0, armor: 0, armorAmt: 0, speed: 0, magnet: 0, smoke: 0 },
   run: { kills: 0, looted: 0, crafted: 0, distance: 0, visited: 1 },
   buildMode: false, buildSelected: null, buildTarget: 'roof', interiorSelected: null,
+  crafting: null, night: 0, dayCycle: 0,
+  tornado: null, tornadoTimer: 78, tornadoWarned: false,
   interact: null,
   canvas: null, ctx: null,
   _houseMarks: { a: false, b: false, c: false },
@@ -70,6 +73,7 @@ export const G = {
       panel: (name) => {
         if (name === 'build') this.toggleBuild();
         else if (name === 'foot') this.toggleFoot();
+        else if (name === 'anchor') this.deployAnchor();
         else if (name === 'shop') this.openShop();
         else this.togglePanel(name);
       },
@@ -129,9 +133,14 @@ export const G = {
       grid: { cols: 6, rows: 4, cell: 26, cells: new Array(24).fill(null) },
       interior: new Array(6).fill(null),
       paint: '#35506b', paintDark: '#2f4a66', paintTrim: '#3b5875', paintId: 'bay',
-      raft: false, engine: false,
+      raft: false, engine: false, anchors: 1, anchorT: 0,
     };
     this.player = { x: 0, y: 0, face: 0, onFoot: false, walkPhase: 0, moving: false, hp: 100, maxHp: 100 };
+    this.crafting = null;
+    this.night = 0;
+    this.tornado = null;
+    this.tornadoTimer = 95;
+    this.tornadoWarned = false;
     this.run = { kills: 0, looted: 0, crafted: 0, distance: 0, visited: 1 };
     this._houseMarks = { a: false, b: false, c: false };
     this._warnedSink = false;
@@ -186,6 +195,7 @@ export const G = {
         carUpg: this.carUpg,
         car: {
           hull: this.car.hull, hullMax: this.car.hullMax, raft: this.car.raft, engine: this.car.engine,
+          anchors: this.car.anchors || 0,
           cells: this.car.grid.cells.map((c) => (c ? c.id : null)),
           interior: (this.car.interior || []).map((m) => (m ? m.id : null)),
           paint: this.car.paint, paintDark: this.car.paintDark,
@@ -249,6 +259,7 @@ export const G = {
       paint: car.paint || '#35506b', paintDark: car.paintDark || '#2f4a66',
       paintTrim: car.paintTrim || '#3b5875', paintId: car.paintId || 'bay',
       raft: !!car.raft, engine: !!car.engine,
+      anchors: car.anchors || 0, anchorT: 0,
     };
     this.player = { x: 0, y: 0, face: 0, onFoot: false, walkPhase: 0, moving: false, hp: 100, maxHp: 100 };
     while (this.car.grid.cells.length < 24) this.car.grid.cells.push(null);
@@ -308,12 +319,19 @@ export const G = {
     this.particles = [];
     this.floaters = [];
     this.interact = null;
+    this.crafting = null;
+    this.tornado = null;
+    this.night = 0;
+    this.dayCycle = 0;
+    this.tornadoTimer = 55 + Math.min(50, this.zoneIndex * 8);
+    this.tornadoWarned = false;
+    if (this.car) this.car.anchorT = 0;
     this.magnetTimer = 0;
     this._warnedSink = false;
     this.buffs.magnet = 0;
     this.run.visited = Math.max(this.run.visited, this.zoneIndex + 1);
     this.tips = this.zoneIndex === 0 && this.zoneTime === 0 ? [
-      { at: 4, text: 'Press <b>C</b> to open the crafting book — <b>1,002 recipes</b> for weapons, turrets, drones and rooms.' },
+      { at: 4, text: 'Press <b>C</b> to open the crafting book — <b>1,068 recipes</b> for weapons, turrets, drones and rooms.' },
       { at: 14, text: 'Press <b>B</b>, pick a module, then click a cell on the car roof. That is your house.' },
       { at: 26, text: 'Drive close to a glowing crate and press <b>E</b> to loot it.' },
       { at: 40, text: 'Green markers are survivors. Recruit them with <b>E</b> — they loot, craft, repair and shoot for you.' },
@@ -392,7 +410,7 @@ export const G = {
     const st = {
       armor: 0, cap: 900, crewCap: 1, station: 0, solar: 1.2, repair: 0,
       droneCap: 0, houseScore: 0, radar: 600, ram: 0, lootBonus: 0,
-      powerMax: 100, craftDiscount: 0, turretDmgMult: 1, weaponDmgMult: 1,
+      powerMax: 100, craftDiscount: 0, craftSpeed: 0, turretDmgMult: 1, weaponDmgMult: 1,
       maxSpeed: 300, accel: 360, turn: 2.6,
     };
     for (const m of car.grid.cells) {
@@ -411,6 +429,7 @@ export const G = {
       st.ram += s.ram || 0;
       st.lootBonus += s.lootBonus || 0;
       st.craftDiscount += s.craftDiscount || 0;
+      st.craftSpeed += s.craftSpeed || 0;
     }
     for (const m of car.interior || []) {
       if (!m) continue;
@@ -524,6 +543,7 @@ export const G = {
       if (k === 'e') { this.interactNow(); return; }
       if (k === 't') { this.travel(); return; }
       if (k === 'g') { this.toggleFoot(); return; }
+      if (k === 'y') { this.deployAnchor(); return; }
     });
     window.addEventListener('keyup', (e) => {
       const k = e.key.toLowerCase();
@@ -786,9 +806,13 @@ export const G = {
     for (const [k, v] of Object.entries(cost)) this.res[k] -= v;
   },
 
-  craft(id) {
+  craft(id, opts = {}) {
     const r = RECIPE_BY_ID[id];
     if (!r) return;
+    if (this.crafting) {
+      UI.toast(`Already crafting <b>${escName(this.crafting.name)}</b> — wait for it to finish.`, 'warn');
+      return;
+    }
     if (r.station > this.stats.station) {
       UI.toast(`🔒 Needs <b>${STATION_NAMES[r.station]}</b> — build it on the car first.`, 'bad');
       U.Sfx.error();
@@ -803,11 +827,38 @@ export const G = {
       return;
     }
     const out = r.out;
-    if (out.type === 'vehicle' && (out.upgrade === 'raft' && this.car.raft || out.upgrade === 'engine' && this.car.engine)) {
+    if (out.type === 'vehicle' && ((out.upgrade === 'raft' && this.car.raft) || (out.upgrade === 'engine' && this.car.engine))) {
       UI.toast('That upgrade is already installed on the car.', 'warn');
       return;
     }
     this.payCost(cost);
+    const speed = 1 + (this.stats.craftSpeed || 0);
+    const total = opts.instant ? 0 : Math.max(0.3, (0.5 + r.tier * 0.42) / speed);
+    if (total <= 0.01) { this.applyCraftOutput(r); return; }
+    this.crafting = { id: r.id, name: r.name, icon: r.icon, t: 0, total, tier: r.tier };
+    UI.refresh();
+    UI.toast(`${r.icon} Working on <b>${r.name}</b> — ${total.toFixed(1)}s${this.stats.craftSpeed > 0 ? ` (stations +${Math.round(this.stats.craftSpeed * 100)}%)` : ''}.`, '');
+    U.Sfx.click();
+  },
+
+  // 99-Nights-style timed crafting: the job ticks in the update loop.
+  updateCraft(dt) {
+    const c = this.crafting;
+    if (!c) return;
+    c.t += dt;
+    if (c.t < c.total) return;
+    const r = RECIPE_BY_ID[c.id];
+    this.crafting = null;
+    if (r) this.applyCraftOutput(r);
+  },
+
+  craftProgress() {
+    if (!this.crafting) return 0;
+    return U.clamp(this.crafting.t / this.crafting.total, 0, 1);
+  },
+
+  applyCraftOutput(r) {
+    const out = r.out;
     this.run.crafted++;
     let msg = '';
     if (out.type === 'weapon') {
@@ -911,6 +962,10 @@ export const G = {
         this.buffs.smoke = dur;
         UI.toast('💨 Smoke screen — enemy aim is ruined.', 'good');
         break;
+      case 'anchor':
+        this.car.anchors = (this.car.anchors || 0) + 1;
+        UI.toast('⚓ Anchor charge stored — press <b>Y</b> to hold the ground.', 'good');
+        break;
       case 'droneRepair':
         this.drones.forEach((d) => { d.hp = d.maxHp; d.repairTimer = 0; });
         this.recompute();
@@ -940,6 +995,9 @@ export const G = {
       if (this.car.engine) { UI.toast('Ship engine already installed.', 'warn'); return; }
       this.car.engine = true;
       UI.toast('⛴️ <b>Ship Engine installed.</b> The oceans are open.', 'good');
+    } else if (id === 'anchor') {
+      this.car.anchors = (this.car.anchors || 0) + 1;
+      UI.toast('⚓ <b>Anomaly Anchor</b> stored — press <b>Y</b> to hold the ground.', 'good');
     } else if (id === 'repair') {
       this.car.hull = this.car.hullMax;
       UI.toast('Hull fully repaired.', 'good');
@@ -1291,6 +1349,10 @@ export const G = {
         const d = U.dist(wx, wy, e.x, e.y);
         if (d < bd) { bd = d; target = e; }
       }
+      if (this.tornado) {
+        const td = U.dist(wx, wy, this.tornado.x, this.tornado.y);
+        if (td < spec.range + this.tornado.r && td < bd + this.tornado.r) { bd = td; target = this.tornado; }
+      }
       if (target) {
         const want = U.angTo(wx, wy, target.x, target.y);
         m.aim = U.angLerp(m.aim || want, want, Math.min(1, 10 * dt));
@@ -1462,6 +1524,12 @@ export const G = {
             break;
           }
         }
+        if (!b.dead && this.tornado && U.dist(b.x, b.y, this.tornado.x, this.tornado.y) < this.tornado.r * 0.9) {
+          b.dead = true;
+          this.tornado.hp -= b.dmg * 1.3;
+          this.tornado.hit = 1;
+          this.floater(b.x, b.y, '-' + Math.round(b.dmg * 1.3), '#7dd3fc', 12);
+        }
       } else {
         // hit drones first (small chance-like geometry)
         let hitDrone = null;
@@ -1513,6 +1581,9 @@ export const G = {
 
   activeBuffs() {
     const out = [];
+    if (this.car && this.car.anchorT > 0) out.push({ label: '⚓ ANCHORED', t: Math.ceil(this.car.anchorT) });
+    else if (this.car && this.car.anchors > 0) out.push({ label: '⚓ ×' + this.car.anchors, t: 0 });
+    if (this.tornado) out.push({ label: '🌪️ ANOMALY', t: Math.ceil(this.tornado.life) });
     if (this.buffs.dmg > 0) out.push({ label: '💥 DAMAGE+', t: this.buffs.dmg });
     if (this.buffs.armor > 0) out.push({ label: '🛡️ ARMOUR+', t: this.buffs.armor });
     if (this.buffs.speed > 0) out.push({ label: '🏎️ SPEED+', t: this.buffs.speed });
@@ -1631,6 +1702,13 @@ export const G = {
     this.fireCd -= dt;
     this.fireFlash = Math.max(0, this.fireFlash - dt);
     this.shake = Math.max(0, this.shake - dt * 26);
+    if (car.anchorT > 0) {
+      car.anchorT = Math.max(0, car.anchorT - dt);
+      car.speed *= 0.02;
+      if (car.anchorT === 0) UI.toast('⚓ Anchor released — you can drive again.', '');
+    }
+    this.updateCraft(dt);
+    this.updateTornado(dt);
     for (const k of ['dmg', 'armor', 'speed', 'magnet', 'smoke']) {
       if (this.buffs[k] > 0) this.buffs[k] = Math.max(0, this.buffs[k] - dt);
     }
@@ -1709,6 +1787,136 @@ export const G = {
     }
     p.face = this.aimAngle;
     p.hp = Math.min(p.maxHp, p.hp + 2 * dt);
+  },
+
+  // ---------------------------------------------------------------- anomaly tornado
+  spawnTornado() {
+    const car = this.car;
+    const a = Math.random() * U.TAU;
+    const tier = this.zone.def.tier;
+    this.tornado = {
+      x: U.clamp(car.x + Math.cos(a) * 1500, 90, this.zone.w - 90),
+      y: U.clamp(car.y + Math.sin(a) * 1500, 90, this.zone.h - 90),
+      hp: 900 + tier * 260, maxHp: 900 + tier * 260,
+      r: 96, life: 36, spin: 0, hit: 0, tier,
+    };
+    this.tornadoWarned = false;
+    UI.banner('ANOMALY TORNADO', 'A living storm is hunting the car. Press <b>Y</b> to drop an anchor, then shoot it apart.', 5600);
+    UI.toast(`🌪️ <b>ANOMALY TORNADO</b> inbound — anchor charges: <b>${this.car.anchors || 0}</b> (Y).`, 'bad');
+    U.Sfx.boom();
+    this.save();
+  },
+
+  updateTornado(dt) {
+    const zone = this.zone;
+    // day / night clock
+    this.dayCycle = (this.dayCycle || 0) + dt;
+    const phase = (this.dayCycle % 165) / 165;
+    if (!this.tornado) {
+      const wantNight = zone.def.finale ? 0 : phase > 0.6 ? 0.8 : 0;
+      this.night += (wantNight - this.night) * Math.min(1, dt * 0.9);
+      if (zone.def.finale) return;
+      this.tornadoTimer -= dt;
+      if (this.tornadoTimer <= 5 && !this.tornadoWarned) {
+        this.tornadoWarned = true;
+        UI.banner('ANOMALY DETECTED', 'The sky is turning. Craft or buy an <b>⚓ Anomaly Anchor</b>, then press <b>Y</b> when it hits.', 4800);
+        UI.toast(`🌪️ Storm forming — anchors: <b>${this.car.anchors || 0}</b>.`, 'warn');
+        U.Sfx.tone(90, 1.2, 'sawtooth', 0.05, -40);
+      }
+      if (this.tornadoTimer <= 0) this.spawnTornado();
+      return;
+    }
+    const t = this.tornado;
+    this.night += (1 - this.night) * Math.min(1, dt * 1.6);
+    t.life -= dt;
+    t.spin += dt * 3.2;
+    t.hit = Math.max(0, t.hit - dt * 2.5);
+    const car = this.car;
+    const d = U.dist(t.x, t.y, car.x, car.y);
+    const ang = U.angTo(t.x, t.y, car.x, car.y);
+    const sp = 54 + t.tier * 5;
+    t.x += Math.cos(ang + Math.sin(this.t * 0.8) * 0.6) * sp * dt;
+    t.y += Math.sin(ang + Math.cos(this.t * 0.7) * 0.6) * sp * dt;
+    t.x = U.clamp(t.x, 60, zone.w - 60);
+    t.y = U.clamp(t.y, 60, zone.h - 60);
+
+    const anchored = car.anchorT > 0;
+    if (d < 950) {
+      const pull = 1 - d / 950;
+      if (!anchored) {
+        const f = pull * pull * 300;
+        car.x = U.clamp(car.x + Math.cos(ang) * f * dt, 40, zone.w - 40);
+        car.y = U.clamp(car.y + Math.sin(ang) * f * dt, 40, zone.h - 40);
+        this.shake = Math.min(16, this.shake + pull * 22 * dt);
+      }
+      if (Math.random() < dt * 9 * pull) {
+        const pa = Math.random() * U.TAU, pr = U.rand(90, 420);
+        this.particles.push({
+          x: t.x + Math.cos(pa) * pr, y: t.y + Math.sin(pa) * pr,
+          vx: Math.cos(pa + 1.6) * 120, vy: Math.sin(pa + 1.6) * 120,
+          life: 0.6, maxlife: 0.6, color: U.pick(['#94a3b8', '#cbd5e1', '#6b7280']), size: 3,
+        });
+      }
+    }
+    if (d < t.r + 70) {
+      const mult = anchored ? 0.28 : 1;
+      car.hull -= 46 * mult * dt;
+      this.shake = Math.min(20, this.shake + 16 * dt);
+      for (let i = 0; i < 2; i++) {
+        const a2 = Math.random() * U.TAU;
+        this.particles.push({
+          x: car.x + Math.cos(a2) * U.rand(20, 80), y: car.y + Math.sin(a2) * U.rand(20, 80),
+          vx: Math.cos(a2) * 90, vy: Math.sin(a2) * 90, life: 0.5, maxlife: 0.5,
+          color: anchored ? '#7dd3fc' : '#fca5a5', size: 3,
+        });
+      }
+      if (car.hull <= 0) { this.gameOver(); return; }
+    }
+    if (t.hp <= 0) this.endTornado(true);
+    else if (t.life <= 0) this.endTornado(false);
+  },
+
+  endTornado(killed) {
+    const t = this.tornado;
+    if (!t) return;
+    this.tornado = null;
+    this.tornadoTimer = 95;
+    this.tornadoWarned = false;
+    if (killed) {
+      const pay = 180 + this.zone.def.tier * 60;
+      this.cash += pay;
+      UI.banner('ANOMALY DISPELLED', `You shot the storm apart. Salvage bonds: 🪙 ${pay}.`, 4200);
+      UI.toast(`🌪️💥 <b>Anomaly destroyed</b> (+🪙 ${pay}).`, 'good');
+      for (let i = 0; i < 30; i++) {
+        const a = Math.random() * U.TAU;
+        this.particles.push({
+          x: t.x, y: t.y, vx: Math.cos(a) * U.rand(40, 320), vy: Math.sin(a) * U.rand(40, 320),
+          life: 0.9, maxlife: 0.9, color: U.pick(['#e2e8f0', '#7dd3fc', '#fbbf24']), size: 4,
+        });
+      }
+      this.shake = 14;
+    } else {
+      UI.banner('THE STORM PASSES', 'The anomaly drifts away. Patch the hull and keep moving.', 3600);
+    }
+    this.save();
+  },
+
+  deployAnchor() {
+    if (!this.car || this.screen !== 'playing') return;
+    const car = this.car;
+    if (car.anchorT > 0) { UI.toast('The anchor is already holding.', 'warn'); return; }
+    if (!(car.anchors > 0)) {
+      UI.toast('⚓ No anchor charges — craft a <b>Ground Anchor</b> or buy one at a dock (🪙 380).', 'bad');
+      U.Sfx.error();
+      return;
+    }
+    car.anchors--;
+    car.anchorT = 30;
+    car.speed = 0;
+    this.shake = 9;
+    UI.toast('⚓ <b>Anchor deployed.</b> The car is pinned to the ground for 30s.', 'good');
+    U.Sfx.craft();
+    this.save();
   },
 
   updateEnemies(dt) {

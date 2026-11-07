@@ -32,6 +32,12 @@
           <span class="bar-text" id="powerText">100</span>
         </div>
         <div class="weapon-line" id="weaponLine">🔫 Salvaged Pipe Pistol</div>
+        <div id="craftBox" class="craft-box hidden">
+          <span id="craftIcon">🛠️</span>
+          <div class="craft-track"><div id="craftFill"></div></div>
+          <span id="craftLabel">crafting…</span>
+        </div>
+        <div id="anchorChip" class="anchor-chip hidden">⚓ <b id="anchorCount">0</b> · Y</div>
       </div>
     </div>
 
@@ -55,6 +61,12 @@
     </div>
   </div>
 
+  <div id="tornadoBox" class="boss-box tornado-box hidden">
+    <div class="boss-name">🌪️ ANOMALY TORNADO</div>
+    <div class="boss-track"><div id="tornadoFill"></div></div>
+    <div class="tornado-hint" id="tornadoHint">Press Y to anchor</div>
+  </div>
+
   <div id="bossBox" class="boss-box hidden">
     <div class="boss-name">GENERAL'S TANK</div>
     <div class="boss-track"><div id="bossFill"></div></div>
@@ -75,6 +87,7 @@
     <button data-act="craft" title="Crafting (C)"><span>🛠️</span>Craft<kbd>C</kbd></button>
     <button data-act="build" title="Build mode (B)"><span>🏠</span>Build<kbd>B</kbd></button>
     <button data-act="foot" title="Get out / get back in (G)"><span>🚶</span>Walk<kbd>G</kbd></button>
+    <button data-act="anchor" title="Deploy an anomaly anchor (Y)"><span>⚓</span>Anchor<kbd>Y</kbd></button>
     <button data-act="crew" title="Crew (N)"><span>👥</span>Crew<kbd>N</kbd></button>
     <button data-act="items" title="Satchel (I)"><span>🎒</span>Items<kbd>I</kbd></button>
     <button data-act="route" title="Route (M)"><span>🗺️</span>Route<kbd>M</kbd></button>
@@ -137,6 +150,7 @@
         <span><kbd>T</kbd> depart</span>
         <span><kbd>B</kbd> build · <kbd>Tab</kbd> roof/interior</span>
         <span><kbd>G</kbd> get out / get in</span>
+        <span><kbd>Y</kbd> anchor vs tornado</span>
         <span><kbd>C</kbd> craft</span>
         <span><kbd>Esc</kbd> close</span>
       </div>

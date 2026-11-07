@@ -70,7 +70,17 @@ export const MODULE_KINDS = {
   shield:   { label: 'Shield Plate', icon: '🛡️', score: 10, armor: 9 },
   lantern:  { label: 'Lantern',      icon: '🏮', score: 4,  radar: 420 },
   trophy:   { label: 'Trophy',       icon: '🏆', score: 20 },
+  bathroom: { label: 'Bathroom',     icon: '🚿', score: 9,  repair: 0.8, comfort: 2 },
+  window:   { label: 'Window Wall',  icon: '🪟', score: 6,  armor: 4 },
+  campfire: { label: 'Campfire',     icon: '🔥', score: 6,  craftSpeed: 0.35 },
+  internet: { label: 'Internet Dish',icon: '🛰️', score: 12, radar: 1200, craftDiscount: 0.04 },
+  watertank:{ label: 'Water Barrel', icon: '🛢️', score: 7,  repair: 0.8, cap: 120 },
+  crafttable:{ label:'Crafting Table',icon:'🧰', score: 11, station: 1, craftSpeed: 0.25 },
+  dronehive:{ label: 'Drone Hive',   icon: '🐝', score: 18, droneCap: 2 },
 };
+
+// Every module kind can also be furnished in the cabin through the interior tray.
+export const CRAFT_SPEED_HINT = 'faster crafting';
 
 export const STATION_NAMES = ['Field Kit', 'Workbench', 'Advanced Workshop', 'Nano Lab'];
 
@@ -123,6 +133,7 @@ export const SHOP_ITEMS = [
   { id: 'electronics', name: 'Tech Bundle (25)', icon: '💾', price: 140, desc: 'Adds 25 electronics.' },
   { id: 'alloy',     name: 'Alloy Bundle (20)', icon: '⚙️', price: 220, desc: 'Adds 20 alloy.' },
   { id: 'nano',      name: 'Nano Core',       icon: '✨', price: 480,  desc: 'Adds 1 nano core. Endgame crafting.' },
+  { id: 'anchor',    name: 'Anomaly Anchor',  icon: '⚓', price: 380,  desc: 'A ground anchor charge. Deploy with Y to hold the car against the tornado.' },
 ];
 
 // --------------------------------------------- zone palette used by world/render
