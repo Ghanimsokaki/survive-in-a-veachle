@@ -1,3 +1,17 @@
+# TWO GAMES, ONE REPO
+
+1. **HOME ON WHEELS** — Jakarta → Washington D.C. Build a house on your car, loot the ruins, survive the army. Runs on the repo root (`index.html`) with a hand-written software 3D renderer.
+2. **[SKYUSS](skyuss/README.md)** — an ocean of clouds. Pilot a modular *USS Enterprise* on **Three.js/WebGL2**, refit it tier by tier, and build sky fortresses. Runs at `skyuss/`.
+
+```bash
+npm start        # http://localhost:8000  (Home on Wheels)
+                 # http://localhost:8000/skyuss/  (SKYUSS)
+```
+
+The start menu links straight to SKYUSS, and SKYUSS links back.
+
+---
+
 # HOME ON WHEELS
 
 **Jakarta → Washington D.C. — build a house on your car, loot the ruins of the world, and survive the army.**
@@ -173,6 +187,22 @@ js/main.js            boot + requestAnimationFrame loop
 - **Save game.** `localStorage` (`how_save_v2`), autosaved every 20 s, on zone changes, crafts, purchases and page unload.
 - **Real physics-ish driving.** Acceleration, drag, reverse, speed-scaled steering, drifting slower on water.
 - **Combat.** Bullets are entities with spread, splash, chain lightning, armour mitigation, screen shake, and power-hungry turrets.
+
+## The second game: SKYUSS
+
+`skyuss/` is a separate Three.js game sharing this repo:
+
+* **Procedural cloud sea** — a shader sky dome, three drifting puff fields and a scrolling
+  cloud deck, so there is no ground anywhere.
+* **A modular starship** — `upgradeShip('saucer' | 'nacelles' | 'deflector' | 'weapons')`
+  rebuilds the actual Enterprise mesh (and its stats) through five cinematic tiers.
+* **Sky fortresses** — a 12×12 holographic grid of sleek sci-fi platforms, turrets, shield
+  pylons, missile batteries, refineries and matrix condensers, attacked by siege fleets.
+* **The abyss** — drop below the cloud line and the atmosphere crushes the hull.
+* **114 headless assertions** (`npm run smoke:skyuss`) cover the sim, the ship constructor,
+  every fortress piece and the whole browser wiring — no GPU needed.
+
+See [skyuss/README.md](skyuss/README.md) for the design notes and controls.
 
 ## Dev tools
 

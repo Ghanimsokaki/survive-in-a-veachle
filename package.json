@@ -3,19 +3,25 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Home on Wheels \u2014 a 3D car-house survival game: build a home on your car, loot ruins, craft 1000+ items, cross the ocean and survive the army.",
+  "description": "Two browser games with no build step: Home on Wheels (3D car-house survival) and SKYUSS (Three.js cloud-sea starship survival).",
   "scripts": {
     "start": "python3 -m http.server 8000 --bind 0.0.0.0",
     "serve": "python3 -m http.server 8000 --bind 0.0.0.0",
-    "check": "node --check js/util.js && node --check js/data.js && node --check js/recipes.js && node --check js/world.js && node --check js/geo3d.js && node --check js/camera3d.js && node --check js/render.js && node --check js/ui.js && node --check js/game.js && node --check js/main.js",
+    "check": "node --check js/util.js && node --check js/data.js && node --check js/recipes.js && node --check js/world.js && node --check js/geo3d.js && node --check js/camera3d.js && node --check js/render.js && node --check js/ui.js && node --check js/game.js && node --check js/main.js && node --check skyuss/js/config.js && node --check skyuss/js/enterprise.js && node --check skyuss/js/fort.js && node --check skyuss/js/world.js && node --check skyuss/js/sim.js && node --check skyuss/js/ui.js && node --check skyuss/js/main.js",
     "test": "node tools/smoke.mjs",
     "shots": "node tools/shot.mjs",
-    "smoke": "node tools/smoke.mjs"
+    "smoke": "node tools/smoke.mjs",
+    "smoke:skyuss": "node tools/skyuss-smoke.mjs",
+    "test:all": "node tools/smoke.mjs && node tools/skyuss-smoke.mjs && node tools/skyuss-boot.mjs",
+    "smoke:skyuss:boot": "node tools/skyuss-boot.mjs"
   },
   "devDependencies": {
     "@napi-rs/canvas": "^1.1.0",
     "@sparticuz/chromium": "^153.0.0",
     "jsdom": "^31.0.0",
     "puppeteer-core": "^25.16.0"
+  },
+  "dependencies": {
+    "three": "^0.170.0"
   }
 }
