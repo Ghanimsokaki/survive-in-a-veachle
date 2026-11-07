@@ -87,7 +87,19 @@ G.car.hull = G.car.hullMax * 0.62;
 G.spawnEnemy('raider', G.car.x + 170, G.car.y - 110);
 G.spawnEnemy('brute', G.car.x - 150, G.car.y + 90);
 G.spawnEnemy('car', G.car.x + 230, G.car.y + 40);
+let spotX = G.zone.w * 0.42;
+for (let x = 700; x < G.zone.w - 700; x += 80) {
+  if (G.zone.ruins.every((r) => Math.hypot(r.cx - x, r.cy - G.zone.h / 2) > 700)) { spotX = x; break; }
+}
+G.car.x = spotX;
+G.car.y = G.zone.h / 2;
+G.car.angle = Math.PI * 0.02;
+G.enemies.forEach((e, i) => {
+  e.x = G.car.x + [230, -220, 260][i % 3];
+  e.y = G.car.y + [-150, 120, 60][i % 3];
+});
 G.mouse.x = 1100; G.mouse.y = 320;
+G.setPaint('rust');
 for (let i = 0; i < 90; i++) G.frame(1 / 60);
 shot('02-car-house');
 

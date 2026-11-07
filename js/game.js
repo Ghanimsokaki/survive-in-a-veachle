@@ -3,6 +3,7 @@ import * as U from './util.js';
 import {
   RES, RES_KEYS, MODULE_KINDS, STATION_NAMES, ENEMY_TYPES, ROLES,
   SHOP_ITEMS, rollLoot, NAMES, INTERIOR_ITEMS, INTERIOR_BY_ID,
+  CAR_PAINTS, CAR_PAINT_BY_ID,
 } from './data.js';
 import { RECIPES, RECIPE_BY_ID } from './recipes.js';
 import { ZONES, genZone } from './world.js';
@@ -81,6 +82,7 @@ export const G = {
       sell: (k, qty) => this.sell(k, qty),
       selectBuild: (id) => { this.buildSelected = id; UI.renderBuildTray(this); },
       selectInterior: (id) => this.selectInterior(id),
+      setPaint: (id) => this.setPaint(id),
       setBuildTarget: (t) => this.setBuildTarget(t),
       toggleFoot: () => this.toggleFoot(),
       exitBuild: () => this.exitBuild(),
@@ -126,6 +128,7 @@ export const G = {
       hull: 500, hullMax: 500, power: 120,
       grid: { cols: 6, rows: 4, cell: 26, cells: new Array(24).fill(null) },
       interior: new Array(6).fill(null),
+      paint: '#35506b', paintDark: '#2f4a66', paintTrim: '#3b5875', paintId: 'bay',
       raft: false, engine: false,
     };
     this.player = { x: 0, y: 0, face: 0, onFoot: false, walkPhase: 0, moving: false, hp: 100, maxHp: 100 };
@@ -185,6 +188,8 @@ export const G = {
           hull: this.car.hull, hullMax: this.car.hullMax, raft: this.car.raft, engine: this.car.engine,
           cells: this.car.grid.cells.map((c) => (c ? c.id : null)),
           interior: (this.car.interior || []).map((m) => (m ? m.id : null)),
+          paint: this.car.paint, paintDark: this.car.paintDark,
+          paintTrim: this.car.paintTrim, paintId: this.car.paintId,
         },
         run: this.run,
         playtime: this.playtime,
@@ -241,6 +246,8 @@ export const G = {
         const it = id ? INTERIOR_BY_ID[id] : null;
         return it ? { id: it.id, kind: it.id, name: it.name, icon: it.icon, stat: it.stat } : null;
       }),
+      paint: car.paint || '#35506b', paintDark: car.paintDark || '#2f4a66',
+      paintTrim: car.paintTrim || '#3b5875', paintId: car.paintId || 'bay',
       raft: !!car.raft, engine: !!car.engine,
     };
     this.player = { x: 0, y: 0, face: 0, onFoot: false, walkPhase: 0, moving: false, hp: 100, maxHp: 100 };
@@ -648,6 +655,19 @@ export const G = {
     UI.toast(`${item.icon} <b>${item.name}</b> bolted into the cabin.`, 'good');
   },
 
+  setPaint(id) {
+    const p = CAR_PAINT_BY_ID[id];
+    if (!p) return;
+    this.car.paint = p.body;
+    this.car.paintDark = p.dark;
+    this.car.paintTrim = p.trim;
+    this.car.paintId = p.id;
+    UI.renderBuildTray(this);
+    U.Sfx.click();
+    UI.toast(`🎨 Car painted <b>${p.name}</b>.`, 'good');
+    this.save();
+  },
+
   removeInterior(slot) {
     if (slot < 0) return;
     const m = this.car.interior[slot];
@@ -684,6 +704,10 @@ export const G = {
       UI.toast('Back behind the wheel.', '');
       U.Sfx.click();
     } else {
+      if (this.zone && this.zone.def.isSea) {
+        UI.toast('You cannot walk on water — stay with the car until you make land.', 'warn');
+        return;
+      }
       if (Math.abs(this.car.speed) > 40) { UI.toast('Slow down before stepping out.', 'warn'); return; }
       const a = this.car.angle + Math.PI / 2;
       p.x = this.car.x + Math.cos(a) * 130;

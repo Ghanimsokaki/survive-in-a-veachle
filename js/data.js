@@ -153,3 +153,14 @@ export const INTERIOR_ITEMS = [
   { id: 'heater', name: 'Cabin Heater',   icon: '♨️', cost: { scrap: 30, wire: 12 },         stat: { comfort: 3, powerMax: 20 },  desc: 'Warm nights, +20 power capacity.' },
 ];
 export const INTERIOR_BY_ID = Object.fromEntries(INTERIOR_ITEMS.map((i) => [i.id, i]));
+
+// --------------------------------------------- car paint presets
+export const CAR_PAINTS = [
+  { id: 'bay',     name: 'Bay Blue',   body: '#35506b', dark: '#2f4a66', trim: '#3b5875' },
+  { id: 'rust',    name: 'Rust Red',   body: '#7a3a2c', dark: '#67301f', trim: '#8c4633' },
+  { id: 'jungle',  name: 'Jungle',     body: '#3f5734', dark: '#37492e', trim: '#4b6a3d' },
+  { id: 'sand',    name: 'Sand',       body: '#8a7448', dark: '#7a653c', trim: '#9c8557' },
+  { id: 'gun',     name: 'Gunmetal',   body: '#3a4046', dark: '#32373d', trim: '#485057' },
+  { id: 'sunset',  name: 'Sunset',     body: '#8c5124', dark: '#7a441d', trim: '#a35f2c' },
+];
+export const CAR_PAINT_BY_ID = Object.fromEntries(CAR_PAINTS.map((p) => [p.id, p]));

@@ -317,9 +317,12 @@ function buildCar(G, out) {
 
   // chassis
   carBox(out, G, 0, 0.62, 0, 8.7, 0.55, 5.7, '#22313f');
-  carBox(out, G, 0, 1.16, 0, 8.6, 0.9, 5.6, shallow ? '#5a4b45' : '#35506b', 0, 0, null, { skipTop: true });
-  carBox(out, G, 2.7, 1.62, 0, 3.0, 0.5, 5.1, '#3b5875');
-  carBox(out, G, -0.5, 1.86, 0, 4.4, 1.0, 5.0, '#2f4a66', 0, 0, null, { skipTop: true });
+  const paint = car.paint || '#35506b';
+  const paintDark = car.paintDark || '#2f4a66';
+  const paintTrim = car.paintTrim || '#3b5875';
+  carBox(out, G, 0, 1.16, 0, 8.6, 0.9, 5.6, shallow ? '#5a4b45' : paint, 0, 0, null, { skipTop: true });
+  carBox(out, G, 2.7, 1.62, 0, 3.0, 0.5, 5.1, paintTrim);
+  carBox(out, G, -0.5, 1.86, 0, 4.4, 1.0, 5.0, paintDark, 0, 0, null, { skipTop: true });
   // glass
   carBox(out, G, 1.62, 1.98, 0, 0.14, 0.62, 4.2, '#9fd8ff');
   carBox(out, G, -0.5, 1.98, 2.52, 3.6, 0.55, 0.06, '#8fd3ff');

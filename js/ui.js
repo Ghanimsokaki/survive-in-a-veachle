@@ -1,6 +1,6 @@
 // DOM interface: HUD, crafting book, build tray, crew, satchel, dock shop, route.
 import { RECIPES, RECIPE_BY_ID, CATEGORIES, RECIPE_COUNT } from './recipes.js';
-import { RES, RES_KEYS, ROLES, SHOP_ITEMS, STATION_NAMES, INTERIOR_ITEMS } from './data.js';
+import { RES, RES_KEYS, ROLES, SHOP_ITEMS, STATION_NAMES, INTERIOR_ITEMS, CAR_PAINTS } from './data.js';
 import { ZONES } from './world.js';
 import { fmt, clamp } from './util.js';
 
@@ -29,7 +29,7 @@ export const UI = {
       hotbar: $('hotbar'), panelLayer: $('panelLayer'), panel: $('panel'), panelTitle: $('panelTitle'),
       panelSub: $('panelSub'), panelBody: $('panelBody'), panelClose: $('panelClose'),
       buildTray: $('buildTray'), trayItems: $('trayItems'), trayHint: $('trayHint'), buildExit: $('buildExit'),
-      trayRoof: $('trayRoof'), trayInterior: $('trayInterior'),
+      trayRoof: $('trayRoof'), trayInterior: $('trayInterior'), trayPaints: $('trayPaints'),
       waveBox: $('waveBox'), waveLabel: $('waveLabel'), waveFill: $('waveFill'),
       bossBox: $('bossBox'), bossFill: $('bossFill'), weaponLine: $('weaponLine'),
       menu: $('menu'), saveMeta: $('saveMeta'), endScreen: $('endScreen'),
@@ -55,6 +55,12 @@ export const UI = {
     this.el.buildExit.addEventListener('click', () => actions.exitBuild());
     this.el.trayRoof.addEventListener('click', () => actions.setBuildTarget('roof'));
     this.el.trayInterior.addEventListener('click', () => actions.setBuildTarget('interior'));
+    if (this.el.trayPaints) {
+      this.el.trayPaints.addEventListener('click', (e) => {
+        const sw = e.target.closest('[data-paint]');
+        if (sw) actions.setPaint(sw.dataset.paint);
+      });
+    }
     this.el.trayItems.addEventListener('click', (e) => {
       const it = e.target.closest('.tray-item');
       if (!it) return;
@@ -499,6 +505,7 @@ export const UI = {
             <li>Walls and shield plates add armour, storage adds material cap, beds add crew berths.</li>
             <li>Workbench → Advanced Workshop → Nano Lab unlock higher recipe tiers.</li>
             <li>Right-click a cell to tear the module off and get it back.</li>
+            <li>The tray also has six <b>paint swatches</b> — repaint the car any time.</li>
             <li>Press <b>Tab</b> in build mode for the <b>interior</b>: 6 mount points inside the cabin take furniture (cot, stove, fridge, lamp, radio, safe…). Click a mount point to install.</li>
           </ul>
         </div>
@@ -536,6 +543,11 @@ export const UI = {
   // ------------------------------------------------------------- build tray
   renderBuildTray(G) {
     this.setBuildTarget(G.buildTarget || 'roof');
+    if (this.el.trayPaints) {
+      this.el.trayPaints.innerHTML = CAR_PAINTS.map((p) =>
+        `<button class="paint-sw ${G.car.paintId === p.id ? 'active' : ''}" data-paint="${p.id}" title="${p.name}" style="background:${p.body}"></button>`
+      ).join('');
+    }
     if (G.buildTarget === 'interior') {
       this.el.trayItems.innerHTML = INTERIOR_ITEMS.map((it) => {
         const cost = G.interiorCost(it);

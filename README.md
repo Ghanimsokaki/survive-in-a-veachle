@@ -32,6 +32,7 @@ npm start                         # same thing
 | `T` | depart to the next zone (at the DEPART gate) |
 | `B` | build mode — pick a module, click a roof cell, right-click to remove |
 | `Tab` | in build mode: switch between the **roof** and the **cabin interior** |
+| build tray swatches | repaint the car (six presets, free) |
 | `C` | crafting book (1,002 recipes) |
 | `N` | crew |
 | `I` | satchel (weapons, consumables, drones) |
@@ -100,6 +101,8 @@ Everything is drawn in real perspective:
 | 🔐 Floor Safe | 18 alloy · 30 scrap | +500 cap, +10 armour |
 | 🪴 Potted Plant | 8 food · 15 wood | +4 comfort |
 | ♨️ Cabin Heater | 30 scrap · 12 wire | +3 comfort, +20 power |
+
+The build tray also carries six **paint presets** (Bay Blue, Rust Red, Jungle, Sand, Gunmetal, Sunset) that recolour the body, cabin and hood instantly and are saved with the run.
 
 Comfort feeds straight into the **home score** (×3), so a furnished interior is part of "the best car house". Furniture is saved with the run and can be pulled out again for half the parts.
 
