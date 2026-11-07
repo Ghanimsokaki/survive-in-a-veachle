@@ -326,6 +326,10 @@ const state = {
   mouseDown: false,
   aim: new THREE.Vector3(0, 0, -1),
   orbit: { yaw: 0, pitch: 0, dist: 56 },
+  camMode: 'chase',
+  free: { pos: null, yaw: 0, pitch: 0, speed: 40 },
+  dragMoved: 0,
+  dragButton: -1,
   dragging: false,
   lastPointer: { x: 0, y: 0 },
   ndc: new THREE.Vector2(0, 0),
@@ -660,20 +664,25 @@ window.addEventListener('keydown', (e) => {
   if (!game) return;
   const k = keyName(e);
   state.keys[k] = true;
-  if (k === 'KeyB') { toggleBuild(); e.preventDefault(); }
-  else if (k === 'KeyU') { UI.toggle('tiers', game); e.preventDefault(); }
-  else if (k === 'KeyH') { UI.toggle('help', game); e.preventDefault(); }
-  else if (k === 'KeyF') { if (game.warp()) state.shake = 0.5; }
-  else if (k === 'KeyE') doInteract();
-  else if (k === 'KeyV') toggleFortStyle();
-  else if (k === 'KeyL') toggleAimMode();
-  else if (k === 'KeyP') cycleTouchMode();
+  const free = state.camMode === 'free';
+  if (k === 'KeyG') { toggleCameraMode(); e.preventDefault(); }
+  else if (k === 'KeyT') takePhoto();
+  else if (k === 'Escape') { if (UI.panelOpen()) UI.close(); }
   else if (k === 'KeyO') {
     const on = audio.toggle();
     UI.toast(on ? '🔊 Audio on' : '🔇 Audio muted', '');
     UI.setSoundIcon(on);
   }
-  else if (k === 'Escape') { if (UI.panelOpen()) UI.close(); }
+  // with the photo camera out the ship is paused: only camera keys apply
+  else if (free) { /* WASD/QE/drag are read by syncFreeCamera */ }
+  else if (k === 'KeyB') { toggleBuild(); e.preventDefault(); }
+  else if (k === 'KeyU') { UI.toggle('tiers', game); e.preventDefault(); }
+  else if (k === 'KeyH') { UI.toggle('help', game); e.preventDefault(); }
+  else if (k === 'KeyF') { if (game.warp().ok) state.shake = 0.5; }
+  else if (k === 'KeyE') doInteract();
+  else if (k === 'KeyV') toggleFortStyle();
+  else if (k === 'KeyL') toggleAimMode();
+  else if (k === 'KeyP') cycleTouchMode();
   else if (state.buildMode && /^Digit[1-8]$/.test(k)) {
     const idx = parseInt(k.slice(5), 10) - 1;
     if (PIECE_ORDER[idx]) UI.pickPiece(PIECE_ORDER[idx]);
@@ -691,36 +700,69 @@ canvas.addEventListener('pointerdown', (e) => {
   if (e.button === 0) {
     if (state.buildMode) {
       placeHovered();
+    } else if (e.altKey || state.camMode === 'free') {
+      // alt-drag (and any drag in photo mode) is camera only
+      beginDrag(e);
     } else {
+      // LEFT = shoot. It no longer drags the camera, which is why hostiles
+      // used to be impossible to hit: every shot also swung the view.
       state.mouseDown = true;
-      state.dragging = true;
-      state.lastPointer = { x: e.clientX, y: e.clientY };
     }
   } else if (e.button === 2) {
     if (state.buildMode) removeHovered();
-    else game.fireTorpedo();
+    else beginDrag(e);          // right-drag orbits; a right *click* fires a torpedo
+  } else if (e.button === 1) {
+    beginDrag(e);
   }
   canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
 });
 
+function beginDrag(e) {
+  state.dragging = true;
+  state.dragMoved = 0;
+  state.dragButton = e.button;
+  state.lastPointer = { x: e.clientX, y: e.clientY };
+}
+
 canvas.addEventListener('pointerup', (e) => {
-  if (e.button === 0) { state.mouseDown = false; state.dragging = false; }
+  if (e.button === 0) state.mouseDown = false;
+  if (state.dragging && e.button === state.dragButton) {
+    // a right click that never moved is a torpedo, not a camera drag
+    if (state.dragButton === 2 && state.dragMoved < 6 && !state.buildMode && !UI.modalOpen() && game) game.fireTorpedo();
+    state.dragging = false;
+    state.dragButton = -1;
+  }
 });
+
+canvas.addEventListener('pointercancel', () => { state.mouseDown = false; state.dragging = false; state.dragButton = -1; });
+window.addEventListener('blur', () => { state.mouseDown = false; state.dragging = false; });
 
 canvas.addEventListener('pointermove', (e) => {
   state.ndc.x = (e.clientX / window.innerWidth) * 2 - 1;
   state.ndc.y = -(e.clientY / window.innerHeight) * 2 + 1;
-  if (state.dragging && !state.buildMode) {
+  if (state.dragging && state.lastPointer) {
     const dx = e.clientX - state.lastPointer.x;
     const dy = e.clientY - state.lastPointer.y;
-    state.orbit.yaw -= dx * 0.004;
-    state.orbit.pitch = THREE.MathUtils.clamp(state.orbit.pitch + dy * 0.003, -0.5, 0.9);
+    state.dragMoved += Math.abs(dx) + Math.abs(dy);
+    if (state.camMode === 'free') {
+      // free camera: drag looks around from wherever the camera is floating
+      state.free.yaw -= dx * 0.005;
+      state.free.pitch = THREE.MathUtils.clamp(state.free.pitch - dy * 0.004, -1.35, 1.35);
+    } else if (!state.buildMode) {
+      state.orbit.yaw -= dx * 0.004;
+      state.orbit.pitch = THREE.MathUtils.clamp(state.orbit.pitch + dy * 0.003, -0.5, 0.9);
+    }
     state.lastPointer = { x: e.clientX, y: e.clientY };
   }
 });
 
 canvas.addEventListener('wheel', (e) => {
-  state.orbit.dist = THREE.MathUtils.clamp(state.orbit.dist + e.deltaY * 0.03, 16, 70);
+  if (state.camMode === 'free') {
+    state.free.speed = THREE.MathUtils.clamp(state.free.speed * (e.deltaY > 0 ? 0.85 : 1.18), 6, 900);
+    UI.toast(`Camera speed ${Math.round(state.free.speed)} m/s`, '');
+  } else {
+    state.orbit.dist = THREE.MathUtils.clamp(state.orbit.dist + e.deltaY * 0.03, 16, 70);
+  }
   e.preventDefault();
 }, { passive: false });
 
@@ -812,6 +854,78 @@ function updateAim() {
   const aim = target.sub(from).normalize();
   game.aim = { x: aim.x, y: aim.y, z: aim.z };
   state.aim.copy(aim);
+}
+
+// ------------------------------------------------------------- photo camera
+// `G` detaches the camera and pauses the sim: fly it with WASD/QE, drag to look,
+// `T` writes a PNG of the frame. `G` again snaps back to the chase camera.
+function toggleCameraMode() {
+  if (!game) return;
+  if (state.camMode === 'chase') {
+    state.camMode = 'free';
+    const p = camera.position.clone();
+    state.free.pos = p;
+    const dx = game.pos.x - p.x, dy = game.pos.y - p.y, dz = game.pos.z - p.z;
+    state.free.yaw = Math.atan2(dx, dz);
+    state.free.pitch = Math.atan2(dy, Math.hypot(dx, dz));
+    document.body.classList.add('freecam');
+    const badge = document.getElementById('camBadge');
+    if (badge) badge.classList.remove('hidden');
+    UI.toast('Free camera — WASD/QE fly · drag to look · T photo · G back to the ship', '');
+  } else {
+    state.camMode = 'chase';
+    state.free.pos = null;
+    document.body.classList.remove('freecam');
+    const badge = document.getElementById('camBadge');
+    if (badge) badge.classList.add('hidden');
+    syncCamera(0.016, true);
+    UI.toast('Chase camera', '');
+  }
+}
+
+function syncFreeCamera(dt) {
+  const f = state.free;
+  if (!f.pos) return;
+  const k = state.keys;
+  const speed = f.speed * ((k.ShiftLeft || k.ShiftRight) ? 4 : 1) * dt;
+  const cy = Math.cos(f.yaw), sy = Math.sin(f.yaw);
+  const cp = Math.cos(f.pitch), sp = Math.sin(f.pitch);
+  const fwd = { x: sy * cp, y: sp, z: cy * cp };
+  const right = { x: cy, y: 0, z: -sy };
+  let dx = 0, dy = 0, dz = 0;
+  if (k.KeyW) { dx += fwd.x; dy += fwd.y; dz += fwd.z; }
+  if (k.KeyS) { dx -= fwd.x; dy -= fwd.y; dz -= fwd.z; }
+  if (k.KeyD) { dx += right.x; dz += right.z; }
+  if (k.KeyA) { dx -= right.x; dz -= right.z; }
+  if (k.Space || k.KeyQ) dy += 1;
+  if (k.KeyC || k.KeyE) dy -= 1;
+  f.pos.x += dx * speed;
+  f.pos.y += dy * speed;
+  f.pos.z += dz * speed;
+  if (f.pos.y < 12) f.pos.y = 12;
+  camera.position.set(f.pos.x, f.pos.y, f.pos.z);
+  camera.lookAt(f.pos.x + fwd.x, f.pos.y + fwd.y, f.pos.z + fwd.z);
+  camera.fov += (62 - camera.fov) * Math.min(1, dt * 3);
+  camera.updateProjectionMatrix();
+}
+
+/** Render one frame and hand the PNG to the browser as a download. */
+function takePhoto() {
+  try {
+    renderer.render(scene, camera);
+    const url = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'skyuss-' + new Date().toISOString().replace(/[:.]/g, '-') + '.png';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    UI.toast('📷 Photo saved', 'good');
+    return true;
+  } catch (err) {
+    UI.toast('Photo failed: ' + (err && err.message ? err.message : 'unknown'), 'bad');
+    return false;
+  }
 }
 
 function syncCamera(dt, snap = false) {
@@ -1104,7 +1218,7 @@ let uiTick = 0;
 function loop() {
   const dt = Math.min(clock.getDelta(), 0.05);
 
-  if (game && started && !UI.modalOpen()) {
+  if (game && started && !UI.modalOpen() && state.camMode !== 'free') {
     updateAim();
     const input = buildInput(dt);
     game.update(dt, input);
@@ -1133,7 +1247,8 @@ function loop() {
     syncEnemies();
     syncPickups();
     syncFort(dt);
-    syncCamera(dt);
+    if (state.camMode === 'free') syncFreeCamera(dt);
+    else syncCamera(dt);
     cloudGroup.position.set(
       Math.round(game.pos.x / 900) * 900,
       0,
@@ -1164,7 +1279,12 @@ window.__skyuss = {
   start: (resume) => startGame(resume),
   rebuildShip: () => rebuildShipMesh(),
   rebuildFort: () => rebuildFort(),
+  toggleCamera: () => toggleCameraMode(),
+  takePhoto: () => takePhoto(),
   get worldCells() { return worldCells; },
+  get camMode() { return state.camMode; },
+  get orbit() { return state.orbit; },
+  get free() { return state.free; },
   get worldGroup() { return worldGroup; },
   touch,
   audio,

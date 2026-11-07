@@ -83,7 +83,7 @@ export const SHIP_UPGRADES = {
 export const SHIP_BASE = {
   hull: 400,
   energy: 100,
-  energyRegen: 9,
+  energyRegen: 14,
   boostCost: 18,
   boltSpeed: 260,
   torpedoSpeed: 190,

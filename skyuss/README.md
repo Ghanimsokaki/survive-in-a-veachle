@@ -161,12 +161,24 @@ the real bank, fires the refit VFX and logs *"Refit sweep: n systems upgraded"*.
 ## Flight model
 
 Arcade six-axis: `W/S` throttle, `A/D` yaw, `↑/↓` pitch, `Space/C` climb/dive, `Shift`
-impulse boost, `F` warp dash (3.4× velocity, cooldown from the nacelle tier). The camera is a
-smoothed third-person orbit — drag to orbit, wheel to zoom.
+impulse boost. `F` is a **warp jump home**: wherever you are in the world, it puts the ship
+250 m in front of the fortress, nose pointed at it and already moving, and restreams the
+world around the arrival point. Pressing it while you are already on station boots you
+forward with a 3.4× dash instead (same 25 energy, cooldown from the nacelle tier).
 
-Firing is **mouse-driven with a soft auto-lock assist**: phasers fire along the reticle ray,
-and if a hostile sits inside the lock cone the bolt homes gently onto it (torpedoes home hard).
-Fort turrets are fully automatic.
+The camera is a smoothed third-person orbit — **right-drag** to orbit, wheel to zoom — plus a
+**free camera** on `G`: the sim pauses, you fly the camera with `WASD`/`QE` (hold `Shift` to
+move fast, wheel to change camera speed) and drag to look, and `T` writes a PNG of the frame.
+`G` again snaps back to the ship.
+
+Firing is **mouse-driven with a lock assist that actually connects**. Left mouse (hold) fires
+phasers along the reticle; the bolt is spawned at the saucer rim, aimed at where a locked
+hostile *will be* when it arrives (two-pass lead solve) and homes with `k = 2.6`, so a
+crossing skiff dies in about ten shots. The lock holds for 2.4 s after a target slips out of
+the cone, so a fly-past does not throw your burst into empty sky. Right mouse *click* fires a
+photon torpedo; right mouse *drag* only moves the camera. Phasers cost 2 energy with 14/s
+regeneration, so you can hold the trigger down through a whole fight. Fort turrets are fully
+automatic.
 
 `L`, the **Aim** hotbar button or `#aimChip` switches to **fully manual aim**
 (`game.settings.aimAssist = false`): no lock cone, no homing at all, bolts fly exactly along
@@ -204,7 +216,7 @@ skyuss/
   js/main.js          renderer, cloud sea, camera rig, input, scene sync, VFX
   js/audio.js         synthesised WebAudio (no assets)
   js/touch.js         thumb-stick / look-pad / action buttons for phones
-tools/skyuss-smoke.mjs   headless test: 152 assertions, no GPU required
+tools/skyuss-smoke.mjs   headless test: 225 assertions, no GPU required
 ```
 
 The split is deliberate: **`sim.js` never imports Three.js and `main.js` never owns game
@@ -226,7 +238,7 @@ Useful because jsdom has no WebGL: this is how the hull proportions get reviewed
 ## Tests
 
 ```bash
-npm run smoke:skyuss        # 212 assertions: sim + streaming + meshes, no GPU
+npm run smoke:skyuss        # 225 assertions: sim + streaming + meshes, no GPU
 npm run smoke:skyuss:boot   # 41 assertions: boots the real renderer headlessly
 npm run check               # syntax-check both games
 npm run test:all            # every suite in this repo
@@ -260,9 +272,10 @@ That is 300k+ stub draw calls of coverage without a GPU.
 | `A` `D` | yaw · `↑` `↓` pitch |
 | `Space` `C` | climb / dive |
 | `Shift` | impulse boost |
-| `F` | warp dash |
-| mouse drag / wheel | orbit / zoom the camera |
-| `LMB` | phasers · `RMB` photon torpedo |
+| `F` | warp jump home to the fortress (dash if already there) |
+| right-drag / wheel | orbit / zoom the camera |
+| `G` | free camera (sim paused) · `T` photo → PNG download |
+| `LMB` hold | phasers · `RMB` click photon torpedo |
 | `E` | strip derelict · survey island · deposit at the fortress |
 | `B` | fortress build mode |
 | `U` | Enterprise refit · **⇪ UPGRADE ALL** in that panel |

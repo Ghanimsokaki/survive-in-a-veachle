@@ -7,6 +7,13 @@ import { SkyFort } from './fort.js';
 import { WorldStream, generateWorld, nearestDerelict, nearestIsland, stormAt } from './world.js';
 import { WORLD, PIRATE_TYPES, SIEGE, SCAVENGE, FORT } from './config.js';
 
+// cost of a warp jump home
+const WARP = { cost: 25 };
+// phasers must be cheap enough to hold the button down through a whole fight
+const PHASER_COST = 2;
+// seconds a lock survives after the target leaves the cone
+const LOCK_HOLD = 2.4;
+
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const lerp = (a, b, t) => a + (b - a) * t;
 
@@ -63,6 +70,7 @@ export class SkyGame {
     this.effects = [];           // {kind,x,y,z,size,life,maxLife} — pure data VFX
     // monotonic counters: the renderer diffs these to fire audio + particles
     this.fx = { shots: 0, torps: 0, kills: 0, hits: 0, warps: 0, builds: 0, loot: 0, alarms: 0 };
+    this.lockHold = 0;
     this.siegeTimer = SIEGE.firstAt;
     this.pirateTimer = 26;
     this.siegeWave = 0;
@@ -288,7 +296,7 @@ export class SkyGame {
 
   // ------------------------------------------------------------------ combat
   canFire() {
-    return this.fireCd <= 0 && this.energy >= 3 && this.screen === 'playing';
+    return this.fireCd <= 0 && this.energy >= PHASER_COST && this.screen === 'playing';
   }
 
   /** Returns the bolt it fired, or null. `locked` bores in on the nearest hostile. */
@@ -298,11 +306,14 @@ export class SkyGame {
     this.fireCd = 1 / st.fireRate;
     this.energy -= 3;
     const assisted = this.settings.aimAssist !== false;
-    const dir = (assisted && this.aimEnemy) || this.aim;
+    // a locked hostile wins over the mouse: aim where it *will* be
+    const locked = this.lockedEnemy && this.lockedEnemy.hp > 0 ? this.lockedEnemy : null;
+    const dir = (assisted && locked) ? this.aimAt(locked) : ((assisted && this.aimEnemy) || this.aim);
+    const nose = 13;                       // the saucer's leading edge
     const origin = {
-      x: this.pos.x + this.forward.x * 9,
-      y: this.pos.y + this.forward.y * 9,
-      z: this.pos.z + this.forward.z * 9,
+      x: this.pos.x + this.forward.x * nose,
+      y: this.pos.y + this.forward.y * nose,
+      z: this.pos.z + this.forward.z * nose,
     };
     const bolt = {
       owner: 'ship',
@@ -313,7 +324,7 @@ export class SkyGame {
       },
       damage: st.weaponDamage,
       life: 2.2,
-      homing: assisted ? (this.lockedEnemy || null) : null,
+      homing: assisted ? locked : null,
       color: '#8ef2ff',
     };
     this.bolts.push(bolt);
@@ -328,7 +339,8 @@ export class SkyGame {
     this.torpCd = 3.2;
     this.energy -= 20;
     const assisted = this.settings.aimAssist !== false;
-    const dir = (assisted && this.aimEnemy) || this.aim;
+    const locked = this.lockedEnemy && this.lockedEnemy.hp > 0 ? this.lockedEnemy : null;
+    const dir = (assisted && locked) ? this.aimAt(locked, 190) : ((assisted && this.aimEnemy) || this.aim);
     const bolt = {
       owner: 'ship',
       kind: 'torpedo',
@@ -336,7 +348,7 @@ export class SkyGame {
       vel: { x: dir.x * 190, y: dir.y * 190, z: dir.z * 190 },
       damage: this.ship.stats.weaponDamage * 4,
       life: 3.2,
-      homing: assisted ? (this.lockedEnemy || null) : null,
+      homing: assisted ? locked : null,
       color: '#ffd166',
       splash: 26,
     };
@@ -346,16 +358,56 @@ export class SkyGame {
     return bolt;
   }
 
+  /**
+   * `F` — warp jump: pick the ship up and put it back on station in front of the
+   * fortress, nose toward home, already moving. Close to the fort it degrades to
+   * the old combat dash so the key is never dead.
+   */
   warp() {
-    if (this.warpCd > 0 || this.energy < 25) return false;
+    if (!this.warpReady()) return { ok: false, reason: this.warpCd > 0 ? 'cooldown' : 'energy' };
+    const approach = 250;
+    const dx = this.fort.x - this.pos.x, dz = this.fort.z - this.pos.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < approach + 40) return this.dash();
+
     this.warpCd = this.ship.stats.warpCd;
-    this.energy -= 25;
+    this.energy -= WARP.cost;
+    const ang = Math.atan2(dx, dz);                 // yaw that points at the fort
+    this.pos = {
+      x: this.fort.x - Math.sin(ang) * approach,
+      y: Math.max(WORLD.safeFloor + 30, this.fort.y + 44),
+      z: this.fort.z - Math.cos(ang) * approach,
+    };
+    this.yaw = ang;
+    this.pitch = 0;
+    this.roll = 0;
+    this.speed = this.ship.stats.maxSpeed;
+    this.warpActive = 0.9;
+    this.shieldTimer = 0;
+    this.stats.warps = (this.stats.warps || 0) + 1;
+    this.fx.warps += 1;
+    this.fxBurst('warp', this.pos.x, this.pos.y, this.pos.z, 8, 1.0);
+    this.world = this.stream.update(this.pos);
+    this.visitCell();
+    this.emit('good', `Warp jump: ${Math.round(dist)} m home, the fortress is dead ahead.`);
+    return { ok: true, kind: 'warp', dist: Math.round(dist), approach };
+  }
+
+  /** The old burst: 3.4x thrust for a moment. Used when already on station. */
+  dash() {
+    if (!this.warpReady()) return { ok: false, reason: this.warpCd > 0 ? 'cooldown' : 'energy' };
+    this.warpCd = this.ship.stats.warpCd;
+    this.energy -= WARP.cost;
     this.warpActive = 1.1;
     this.shieldTimer = 0;
     this.fx.warps += 1;
     this.fxBurst('warp', this.pos.x, this.pos.y, this.pos.z, 6, 0.9);
     this.emit('', 'Warp dash!');
-    return true;
+    return { ok: true, kind: 'dash' };
+  }
+
+  warpReady() {
+    return this.warpCd <= 0 && this.energy >= WARP.cost;
   }
 
   /** Nearest hostile inside the lock cone (or null) — the auto-lock assist. */
@@ -368,7 +420,7 @@ export class SkyGame {
       const dx = e.pos.x - this.pos.x, dy = e.pos.y - this.pos.y, dz = e.pos.z - this.pos.z;
       const d = Math.hypot(dx, dy, dz) || 1;
       const dot = (dx * fwd.x + dy * fwd.y + dz * fwd.z) / d;
-      const coneCos = Math.cos(0.55 + this.ship.stats.lockCone);
+      const coneCos = Math.cos(0.7 + this.ship.stats.lockCone);
       if (dot < coneCos) continue;
       const score = dot - d / 2000;
       if (score > bestScore) { bestScore = score; best = e; }
@@ -376,12 +428,23 @@ export class SkyGame {
     return best;
   }
 
-  aimAt(target) {
-    const dx = target.pos.x - this.pos.x;
-    const dy = target.pos.y - this.pos.y;
-    const dz = target.pos.z - this.pos.z;
-    const d = Math.hypot(dx, dy, dz) || 1;
-    return { x: dx / d, y: dy / d, z: dz / d };
+  /**
+   * Point at where `target` will be when the bolt arrives (two-pass lead solve).
+   * Without it, phasers trace behind anything that is actually moving.
+   */
+  aimAt(target, speed = 260) {
+    const vx = target.vel ? target.vel.x : 0;
+    const vy = target.vel ? target.vel.y : 0;
+    const vz = target.vel ? target.vel.z : 0;
+    const dx0 = target.pos.x - this.pos.x, dy0 = target.pos.y - this.pos.y, dz0 = target.pos.z - this.pos.z;
+    let t = Math.hypot(dx0, dy0, dz0) / speed;
+    for (let i = 0; i < 2; i++) {
+      const px = dx0 + vx * t, py = dy0 + vy * t, pz = dz0 + vz * t;
+      t = Math.hypot(px, py, pz) / speed;
+    }
+    const px = dx0 + vx * t, py = dy0 + vy * t, pz = dz0 + vz * t;
+    const d = Math.hypot(px, py, pz) || 1;
+    return { x: px / d, y: py / d, z: pz / d };
   }
 
   damageShip(amount, from) {
@@ -531,7 +594,19 @@ export class SkyGame {
     }
 
     // lock-on assist
-    this.lockedEnemy = this.findLock();
+    // Lock acquisition is sticky for a couple of seconds: without the hold, a
+    // target that slips out of the cone for one frame drops the lock and the
+    // shots you already fired stop tracking it — which reads as "my guns miss".
+    const fresh = this.findLock();
+    if (fresh) {
+      this.lockedEnemy = fresh;
+      this.lockHold = LOCK_HOLD;
+    } else if (this.lockHold > 0 && this.lockedEnemy && this.lockedEnemy.hp > 0) {
+      this.lockHold -= dt;
+    } else {
+      this.lockHold = 0;
+      this.lockedEnemy = null;
+    }
     this.aimEnemy = this.lockedEnemy ? this.aimAt(this.lockedEnemy) : null;
 
     if (input.fire && this.canFire()) this.fire();
@@ -617,7 +692,7 @@ export class SkyGame {
         const dx = tgt.x - b.pos.x, dy = tgt.y - b.pos.y, dz = tgt.z - b.pos.z;
         const d = Math.hypot(dx, dy, dz) || 1;
         const speed = Math.hypot(b.vel.x, b.vel.y, b.vel.z);
-        const k = b.kind === 'torpedo' ? 3.4 : 1.5;
+        const k = b.kind === 'torpedo' ? 4.6 : 2.6;
         b.vel.x = lerp(b.vel.x, (dx / d) * speed, Math.min(1, dt * k));
         b.vel.y = lerp(b.vel.y, (dy / d) * speed, Math.min(1, dt * k));
         b.vel.z = lerp(b.vel.z, (dz / d) * speed, Math.min(1, dt * k));
@@ -638,7 +713,7 @@ export class SkyGame {
       } else {
         for (const e of this.enemies) {
           if (e.hp <= 0) continue;
-          if (Math.hypot(b.pos.x - e.pos.x, b.pos.y - e.pos.y, b.pos.z - e.pos.z) < 6 + e.def.size * 4) {
+          if (Math.hypot(b.pos.x - e.pos.x, b.pos.y - e.pos.y, b.pos.z - e.pos.z) < 8 + e.def.size * 4) {
             const before = e.hp;
             e.hp -= b.damage;
             b.life = 0;

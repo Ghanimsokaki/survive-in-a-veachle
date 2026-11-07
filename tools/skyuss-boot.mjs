@@ -323,6 +323,79 @@ key('Escape'); await frames();
   assert(errors.length === 0, 'streaming the world raises no errors');
 }
 
+// mouse: left button shoots without moving the camera, right drag orbits
+{
+  let g = window.__skyuss.game;
+  g.energy = 100; g.fireCd = 0;
+  const before = g.fx.shots;
+  const orbitYaw = window.__skyuss.orbit.yaw;
+  const canvasEl = document.getElementById('sky');
+  const ev = (type, opts) => new window.MouseEvent(type, { bubbles: true, ...opts });
+  const down = (button) => canvasEl.dispatchEvent(ev('pointerdown', { button, clientX: 700, clientY: 400 }));
+  const up = (button) => canvasEl.dispatchEvent(ev('pointerup', { button }));
+  const move = (x, y) => canvasEl.dispatchEvent(ev('pointermove', { clientX: x, clientY: y }));
+
+  down(0);
+  await frames();
+  g = window.__skyuss.game;
+  assert(g.fx.shots > before, `LMB actually fires (${g.fx.shots - before} bolts)`);
+  move(900, 300);
+  await frames();
+  assert(Math.abs(window.__skyuss.orbit.yaw - orbitYaw) < 1e-9, 'firing no longer drags the camera');
+  up(0);
+
+  down(2);
+  move(1000, 320);
+  await frames();
+  assert(Math.abs(window.__skyuss.orbit.yaw - orbitYaw) > 0.05, 'right-drag orbits the camera');
+  up(2);
+
+  // a right click that never moved is a torpedo, not a camera drag
+  g.torpCd = 0; g.energy = 100;
+  const torps = g.fx.torps;
+  down(2); up(2);
+  await frames();
+  assert(g.fx.torps === torps + 1, 'right click fires a torpedo');
+}
+
+// F warps home to the fortress
+{
+  const live = () => window.__skyuss.game;
+  live().pos = { x: 5400, y: 90, z: -3200 };
+  live().warpCd = 0; live().energy = 100;
+  await frames();
+  live().warpCd = 0; live().energy = 100;
+  key('KeyF');
+  await frames();
+  const g = live();
+  const dist = Math.hypot(g.pos.x - g.fort.x, g.pos.z - g.fort.z);
+  assert(dist > 120 && dist < 360, `warp jump lands on station (${Math.round(dist)} m out)`);
+  const fwd = g.forward;
+  const toFort = Math.atan2(g.fort.x - g.pos.x, g.fort.z - g.pos.z);
+  assert(Math.abs(Math.atan2(fwd.x, fwd.z) - toFort) < 0.2, 'the ship arrives facing the fortress');
+  assert(g.world.islands.length > 0, 'the world restreamed around the fortress');
+}
+
+// G: free camera pauses the sim, T takes a photo, G returns
+{
+  let g = window.__skyuss.game;
+  key('KeyG');
+  await frames(2);
+  assert(window.__skyuss.camMode === 'free', 'G detaches the free camera');
+  assert(!document.getElementById('camBadge').classList.contains('hidden'), 'the photo badge is on screen');
+  const t0 = g.t;
+  g = window.__skyuss.game;
+  await frames(3);
+  assert(window.__skyuss.game.t === t0, 'the sim is paused while the photo camera is out');
+  const shot = window.__skyuss.takePhoto();
+  assert(typeof shot === 'boolean', 'takePhoto always reports back instead of throwing');
+  key('KeyG');
+  await frames(2);
+  assert(window.__skyuss.camMode === 'chase', 'G returns to the chase camera');
+  assert(document.getElementById('camBadge').classList.contains('hidden'), 'the badge hides again');
+  assert(errors.length === 0, 'the camera and photo layer raise no errors');
+}
+
 // a few more simulated seconds with combat noise
 await frames();
 assert(drew > 150, `the loop keeps rendering (${drew} draw calls)`);

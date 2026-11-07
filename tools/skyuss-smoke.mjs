@@ -438,6 +438,47 @@ section('flight, combat, sieges and the abyss');
     g.update(1 / 60, { fire: true });
   }
   assert(enemy.hp <= 0, 'bolts destroy a pirate skiff');
+
+  // the shot leaves from the nose, and the lock leads a moving target
+  g.fireCd = 0; g.energy = 100;
+  g.yaw = 0; g.pitch = 0;
+  const noseBolt = g.fire();
+  const noseGap = Math.hypot(noseBolt.pos.x - g.pos.x, noseBolt.pos.y - g.pos.y, noseBolt.pos.z - g.pos.z);
+  assert(noseGap > 10 && noseGap < 16, `bolts leave the saucer's nose (${noseGap.toFixed(1)} m ahead)`);
+
+  {
+    const h = new SkyGame({ seed: 12 });
+    h.screen = 'playing';
+    h.bank = { titanium: 9000, dilithium: 5000, matrix: 80 };
+    h.upgrade('weapons');
+    const f = h.forward;
+    const mover = h.spawnEnemy('skiff', { x: h.pos.x + f.x * 200, y: h.pos.y, z: h.pos.z + f.z * 200 });
+    h.update(1 / 60, {});
+    assert(!!h.lockedEnemy, 'a hostile dead ahead locks automatically');
+    mover.vel = { x: 45, y: 0, z: -45 };              // streaking across the nose
+    const lead = h.aimAt(mover);
+    const flat = h.aimAt({ pos: mover.pos, vel: { x: 0, y: 0, z: 0 } });
+    const bend = Math.hypot(lead.x - flat.x, lead.y - flat.y, lead.z - flat.z);
+    assert(bend > 0.01, 'aimAt leads a moving target instead of aiming where it was');
+    let guard2 = 0;
+    while (mover.hp > 0 && guard2++ < 900) {
+      h.energy = 100;                                  // isolate tracking from the capacitor
+      h.update(1 / 60, { fire: true });
+    }
+    assert(mover.hp <= 0, 'phasers track and kill a crossing skiff');
+  }
+
+  {
+    const h = new SkyGame({ seed: 21 });
+    h.screen = 'playing';
+    const f = h.forward;
+    const a = 0.7;                                    // 40 deg off the nose
+    const x = f.x * Math.cos(a) - f.z * Math.sin(a);
+    const z = f.z * Math.cos(a) + f.x * Math.sin(a);
+    h.spawnEnemy('skiff', { x: h.pos.x + x * 220, y: h.pos.y, z: h.pos.z + z * 220 });
+    h.update(1 / 60, {});
+    assert(!!h.lockedEnemy, 'the lock cone snaps onto an off-axis target');
+  }
   assert(g.stats.kills === 1, 'kills are counted');
   const gained = g.cargo.titanium > 0 || g.pickups.length > 0;
 assert(gained, 'destroyed pirates drop salvage');
@@ -478,6 +519,30 @@ if (!g.pickups.length) {
   g2.pos.y = WORLD.abyssY - 5;
   g2.update(0.1, {});
   assert(g2.stats.deaths === 1, 'the abyss kills you');
+
+  // warp jump: F takes you home to the fortress
+  {
+    const h = new SkyGame({ seed: 31 });
+    h.screen = 'playing';
+    h.energy = 100;
+    const energy0 = h.energy;
+    h.pos = { x: 4200, y: 80, z: -2600 };
+    h.world = h.stream.update(h.pos);
+    const warps0 = h.fx.warps;
+    const res = h.warp();
+    assert(res.ok && res.kind === 'warp', 'warp() jumps home when you are far away');
+    const home = Math.hypot(h.pos.x - h.fort.x, h.pos.z - h.fort.z);
+    assert(home > 200 && home < 300, `the jump lands on station (${Math.round(home)} m out)`);
+    const fwd = h.forward;
+    const toFort = Math.atan2(h.fort.x - h.pos.x, h.fort.z - h.pos.z);
+    assert(Math.abs(Math.atan2(fwd.x, fwd.z) - toFort) < 0.05, 'you arrive pointed at the fortress');
+    assert(h.energy === energy0 - 25 && h.fx.warps === warps0 + 1, 'the jump costs 25 energy and counts');
+    assert(h.world.islands.length > 0, 'the world restreams around the fortress');
+    assert(!h.warp().ok, 'warp goes on cooldown after a jump');
+    h.warpCd = 0; h.energy = 100;
+    assert(h.warp().kind === 'dash', 'pressing warp on station is a combat dash, not a wasted jump');
+    assert(h.warpReady() === false, 'the dash also starts the cooldown');
+  }
 
   // sieges
   const g3 = new SkyGame({ seed: 9 });
