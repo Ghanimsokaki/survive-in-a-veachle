@@ -112,8 +112,9 @@ skyuss/
   js/world.js         seeded islands / derelicts / storms + their geometry
   js/sim.js           the whole simulation: flight, combat, cargo, sieges, the abyss
   js/ui.js            DOM HUD, panels, radar
-  js/main.js          renderer, cloud sea, camera rig, input, scene sync
-tools/skyuss-smoke.mjs   headless test: 114 assertions, no GPU required
+  js/main.js          renderer, cloud sea, camera rig, input, scene sync, VFX
+  js/audio.js         synthesised WebAudio (no assets)
+tools/skyuss-smoke.mjs   headless test: 129 assertions, no GPU required
 ```
 
 The split is deliberate: **`sim.js` never imports Three.js and `main.js` never owns game
@@ -122,8 +123,8 @@ state**, so the entire gameplay loop can be run and asserted in Node.
 ## Tests
 
 ```bash
-npm run smoke:skyuss        # 114 assertions: sim + meshes, no GPU
-npm run smoke:skyuss:boot   # 15 assertions: boots the real renderer headlessly
+npm run smoke:skyuss        # 129 assertions: sim + meshes, no GPU
+npm run smoke:skyuss:boot   # 24 assertions: boots the real renderer headlessly
 npm run check               # syntax-check both games
 npm run test:all            # every suite in this repo
 ```
@@ -137,8 +138,8 @@ binds exists in `index.html`.
 `tools/skyuss-boot.mjs` goes further: it runs the **real `main.js`** inside jsdom against a
 stub WebGL2 context, so the whole renderer pipeline executes — shader compilation, scene
 graph, the animation loop, the HUD, the refit panel, the fortress tray, live mesh rebuilds
-after an upgrade or a build, and combat frames with projectiles. That is 85k+ stub draw calls
-of coverage without a GPU.
+after an upgrade or a build, BUILD ALL, the sound toggle, and combat frames with projectiles.
+That is 160k+ stub draw calls of coverage without a GPU.
 
 ## Controls
 

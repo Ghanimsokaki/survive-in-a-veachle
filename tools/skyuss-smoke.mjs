@@ -60,7 +60,12 @@ section('modular 3D ship constructor');
 {
   const stock = new Enterprise();
   const mesh0 = buildEnterprise(THREE, stock);
-  assert(mesh0.isGroup && mesh0.children.length > 5, 'stock Enterprise builds a 3D group');
+  let stockMeshes = 0;
+  mesh0.traverse((o) => { if (o.isMesh) stockMeshes++; });
+  assert(mesh0.isGroup && stockMeshes > 20, `stock Enterprise builds a 3D group (${stockMeshes} meshes)`);
+  const dishWorld = new THREE.Vector3();
+  mesh0.userData.parts.dish.getWorldPosition(dishWorld);
+  assert(dishWorld.z > 0, 'the deflector dish points nose-first along +Z (the flight direction)');
   assert(mesh0.userData.parts.nacelles.length === 2, 'two nacelles are modelled');
   assert(mesh0.userData.parts.banks.length === stock.stats.banks, 'one phaser bank per unlocked bank');
   assert(!mesh0.userData.parts.torpedo, 'no torpedo launcher at tier 0');

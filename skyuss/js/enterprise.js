@@ -124,6 +124,12 @@ export function buildEnterprise(THREE, ship) {
 
   const root = new THREE.Group();
   root.name = 'enterprise';
+  // the hull is modelled dish-first along -Z; the flight model moves along +Z,
+  // so the whole body hangs off a flipped group and the ship flies nose-first.
+  const body = new THREE.Group();
+  body.name = 'hull';
+  body.rotation.y = Math.PI;
+  root.add(body);
   const parts = {
     nacelles: [], banks: [], dish: null, torpedo: null, shieldBubble: null, lights: [],
   };
@@ -133,7 +139,7 @@ export function buildEnterprise(THREE, ship) {
   const darkMat = standard(THREE, '#3c4652', { roughness: 0.55, metalness: 0.6 });
   const accentMat = standard(THREE, accent, { roughness: 0.35, metalness: 0.8, emissive: accent, emissiveIntensity: 0.12 });
 
-  const add = (mesh, parent = root) => { parent.add(mesh); return mesh; };
+  const add = (mesh, parent = body) => { parent.add(mesh); return mesh; };
 
   // ---------------------------------------------------------------- saucer
   const saucer = new THREE.Group();
@@ -162,7 +168,7 @@ export function buildEnterprise(THREE, ship) {
     strip.rotation.y = -a;
     parts.banks.push(strip);
   }
-  add(saucer);
+  body.add(saucer);
 
   // ------------------------------------------------------------------ neck
   const neck = add(new THREE.Mesh(new THREE.BoxGeometry(1.5, 3.4, 3.2), darkMat));
@@ -174,9 +180,9 @@ export function buildEnterprise(THREE, ship) {
   eng.name = 'engineering';
   const hullLen = 9.4 + t.saucer * 0.5;
   const hullR = 2.35;
-  const body = add(new THREE.Mesh(new THREE.CapsuleGeometry(hullR, hullLen, 12, 24), hullMat), eng);
-  body.rotation.x = Math.PI / 2;
-  body.position.set(0, -2.7, 0.6);
+  const hullBody = add(new THREE.Mesh(new THREE.CapsuleGeometry(hullR, hullLen, 12, 24), hullMat), eng);
+  hullBody.rotation.x = Math.PI / 2;
+  hullBody.position.set(0, -2.7, 0.6);
   const belly = add(new THREE.Mesh(new THREE.CylinderGeometry(hullR * 0.72, hullR * 0.5, 3.2, 20, 1), darkMat), eng);
   belly.rotation.x = Math.PI / 2;
   belly.position.set(0, -4.2, -1.4);
@@ -197,7 +203,7 @@ export function buildEnterprise(THREE, ship) {
   }
   parts.dish = dishGroup;
   eng.add(dishGroup);
-  add(eng);
+  body.add(eng);
 
   // ------------------------------------------------------------- nacelles
   const nacCount = 2;
@@ -240,7 +246,7 @@ export function buildEnterprise(THREE, ship) {
     nac.add(cap);
 
     parts.nacelles.push({ group: nac, coils: nac.children.filter((m) => m.material && m.material.isMeshBasicMaterial), bussard });
-    add(nac);
+    body.add(nac);
   }
 
   // --------------------------------------------------------------- weapons
