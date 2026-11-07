@@ -196,13 +196,18 @@ js/main.js            boot + requestAnimationFrame loop
   cloud deck, so there is no ground anywhere.
 * **A modular starship** — `upgradeShip('saucer' | 'nacelles' | 'deflector' | 'weapons')`
   rebuilds the actual Enterprise mesh (and its stats) through five cinematic tiers.
-* **Sky fortresses** — a 12×12 holographic grid of sleek sci-fi platforms, turrets, shield
-  pylons, missile batteries, refineries and matrix condensers, attacked by siege fleets.
+* **Sky fortresses** — a 12×12 holographic grid of turrets, shield pylons, missile batteries,
+  refineries and matrix condensers, attacked by siege fleets. Same ruleset in **two art
+  styles**: sleek sci-fi platforms or chunky **voxel blocks**, switched with `V`.
 * **The abyss** — drop below the cloud line and the atmosphere crushes the hull.
 * **Synthesised audio** — WebAudio engine drone, phasers, explosions and alarms, zero asset files.
 * **BUILD ALL** — one click fills every free deck cell of the fortress with the selected piece.
-* **153 headless assertions** (`npm run smoke:skyuss`, `smoke:skyuss:boot`) cover the sim, the ship constructor,
-  every fortress piece and the whole browser wiring — no GPU needed.
+* **UPGRADE ALL** — one click buys every affordable refit across all four components.
+* **Manual aim** — `L` drops the auto-lock assist: no homing, pure reticle skill, switchable back.
+* **Touch controls** — auto-detected thumb-stick, look-pad and action buttons for phones.
+* **193 headless assertions** (`npm run smoke:skyuss` = 152, `smoke:skyuss:boot` = 41) cover the
+  sim, the ship constructor, every fortress piece, both art styles, the aim modes, the touch
+  layer and the whole browser wiring — no GPU needed.
 
 See [skyuss/README.md](skyuss/README.md) for the design notes and controls.
 

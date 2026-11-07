@@ -191,8 +191,13 @@ function mat(THREE, color, opts = {}) {
 /**
  * Build the whole fortress as a Group. Cheap enough to rebuild whenever a piece
  * is added (≤96 pieces), which keeps the code free of incremental bookkeeping.
+ * `style` switches between the sleek hex platforms and voxel blocks.
  */
-export function buildFort(THREE, fort) {
+export function buildFort(THREE, fort, style = 'scifi') {
+  return style === 'voxel' ? buildFortVoxel(THREE, fort) : buildFortScifi(THREE, fort);
+}
+
+function buildFortScifi(THREE, fort) {
   const root = new THREE.Group();
   root.name = 'skyfort';
   const parts = { turrets: [], pylons: [], crystals: [], platforms: [] };
@@ -348,5 +353,175 @@ export function buildFortGrid(THREE, fort) {
   root.userData.highlight = highlight;
   root.userData.ghost = ghost;
   root.userData.half = half;
+  return root;
+}
+
+/**
+ * VOXEL BLOCKS style — the same grid, pieces and rules, built out of chunky
+ * cubes: a Minecraft-ish sky fortress instead of sleek starbase platforms.
+ */
+export function buildFortVoxel(THREE, fort) {
+  const root = new THREE.Group();
+  root.name = 'skyfort';
+  root.style = 'voxel';
+  const parts = { turrets: [], pylons: [], crystals: [], platforms: [] };
+  root.userData.parts = parts;
+
+  const PALETTE = {
+    platform: '#6b7a8c', core: '#8f7ae0', phaser: '#7fa3c8', missile: '#b58a6a',
+    shield: '#5f9fbf', refinery: '#8a7a68', matrix: '#8f6fd0', habitat: '#93a08f',
+    turbolift: '#7fb6a0',
+  };
+  const S = FORT.cell * 0.88;
+  const H = 2.4;
+  const block = (x, y, z, w, h, d, color, opts = {}) => {
+    const m = new THREE.Mesh(
+      new THREE.BoxGeometry(w, h, d),
+      new THREE.MeshStandardMaterial({
+        color, roughness: opts.rough ?? 0.75, metalness: opts.metal ?? 0.25,
+        emissive: opts.emissive ?? '#000000', emissiveIntensity: opts.ei ?? 1,
+        transparent: !!opts.alpha, opacity: opts.alpha ?? 1, flatShading: true,
+      }),
+    );
+    m.position.set(x, y, z);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    root.add(m);
+    return m;
+  };
+
+  for (const cell of fort.cells.values()) {
+    const p = fort.worldPos(cell.ix, cell.iz);
+    const g = new THREE.Group();
+    g.position.set(p.x, p.y, p.z);
+    root.add(g);
+    const add = (mesh) => { g.add(mesh); return mesh; };
+
+    const base = PALETTE[cell.kind] || PALETTE.platform;
+    const deck = add(new THREE.Mesh(
+      new THREE.BoxGeometry(S, H, S),
+      new THREE.MeshStandardMaterial({ color: base, roughness: 0.8, metalness: 0.2, flatShading: true }),
+    ));
+    deck.position.y = H / 2;
+    deck.castShadow = true; deck.receiveShadow = true;
+
+    switch (cell.kind) {
+      case 'core': {
+        const tower = add(new THREE.Mesh(
+          new THREE.BoxGeometry(S * 0.62, H * 2.6, S * 0.62),
+          new THREE.MeshStandardMaterial({ color: '#b6a6ff', emissive: '#6d4bff', emissiveIntensity: 0.7, flatShading: true }),
+        ));
+        tower.position.y = H + H * 1.3;
+        const crown = add(new THREE.Mesh(
+          new THREE.BoxGeometry(S * 0.4, S * 0.4, S * 0.4),
+          new THREE.MeshBasicMaterial({ color: '#d8ccff' }),
+        ));
+        crown.position.y = H * 3.9;
+        parts.crystals.push(crown);
+        for (let i = 0; i < 4; i++) {
+          const a = (i / 4) * Math.PI * 2;
+          const spire = add(new THREE.Mesh(
+            new THREE.BoxGeometry(1.2, H * 1.4, 1.2),
+            new THREE.MeshBasicMaterial({ color: '#8f7ae0' }),
+          ));
+          spire.position.set(Math.cos(a) * S * 0.62, H + H * 0.7, Math.sin(a) * S * 0.62);
+          parts.pylons.push(spire);
+        }
+        break;
+      }
+      case 'phaser':
+      case 'missile': {
+        const head = new THREE.Group();
+        head.position.y = H;
+        const seat = new THREE.Mesh(
+          new THREE.BoxGeometry(S * 0.6, H * 0.8, S * 0.6),
+          new THREE.MeshStandardMaterial({ color: '#4c5766', roughness: 0.7, flatShading: true }),
+        );
+        seat.position.y = H * 0.4;
+        head.add(seat);
+        const barrel = new THREE.Mesh(
+          cell.kind === 'missile'
+            ? new THREE.BoxGeometry(S * 0.5, H * 0.5, S * 0.8)
+            : new THREE.BoxGeometry(S * 0.18, S * 0.18, S * 0.85),
+          new THREE.MeshStandardMaterial({
+            color: cell.kind === 'missile' ? '#c08a5a' : '#9fe6ff',
+            emissive: cell.kind === 'missile' ? '#5a3512' : '#2d9bd6',
+            emissiveIntensity: 0.9, flatShading: true,
+          }),
+        );
+        barrel.position.set(0, H * 0.8, S * 0.3);
+        head.add(barrel);
+        add(head);
+        parts.turrets.push({ group: head, cell });
+        break;
+      }
+      case 'shield': {
+        for (let i = 0; i < 3; i++) {
+          const seg = add(new THREE.Mesh(
+            new THREE.BoxGeometry(S * 0.42, H * 0.9, S * 0.42),
+            new THREE.MeshStandardMaterial({ color: i % 2 ? '#6fa9cc' : '#5f9fbf', emissive: '#1d6f96', emissiveIntensity: 0.5, flatShading: true }),
+          ));
+          seg.position.y = H + i * H * 0.9;
+        }
+        const orb = add(new THREE.Mesh(
+          new THREE.BoxGeometry(S * 0.5, S * 0.5, S * 0.5),
+          new THREE.MeshBasicMaterial({ color: '#9fe6ff', transparent: true, opacity: 0.85 }),
+        ));
+        orb.position.y = H * 3.4;
+        parts.pylons.push(orb);
+        break;
+      }
+      case 'refinery': {
+        const stack = add(new THREE.Mesh(
+          new THREE.BoxGeometry(S * 0.55, H * 2.2, S * 0.55),
+          new THREE.MeshStandardMaterial({ color: '#7d6a55', roughness: 0.9, flatShading: true }),
+        ));
+        stack.position.y = H + H * 1.1;
+        const flame = add(new THREE.Mesh(
+          new THREE.BoxGeometry(S * 0.3, S * 0.3, S * 0.3),
+          new THREE.MeshBasicMaterial({ color: '#ffb457' }),
+        ));
+        flame.position.y = H * 3.4;
+        parts.crystals.push(flame);
+        break;
+      }
+      case 'matrix': {
+        const block2 = add(new THREE.Mesh(
+          new THREE.BoxGeometry(S * 0.55, S * 0.55, S * 0.55),
+          new THREE.MeshStandardMaterial({ color: '#c4a8ff', emissive: '#7c5bff', emissiveIntensity: 1.4, flatShading: true }),
+        ));
+        block2.position.y = H + S * 0.35;
+        parts.crystals.push(block2);
+        break;
+      }
+      case 'habitat': {
+        add(new THREE.Mesh(
+          new THREE.BoxGeometry(S * 0.8, H * 0.9, S * 0.8),
+          new THREE.MeshStandardMaterial({ color: '#a8b8a4', flatShading: true }),
+        )).position.y = H * 1.45;
+        add(new THREE.Mesh(
+          new THREE.BoxGeometry(S * 0.5, H * 0.5, S * 0.5),
+          new THREE.MeshStandardMaterial({ color: '#8b9a88', flatShading: true }),
+        )).position.y = H * 2.1;
+        break;
+      }
+      case 'turbolift': {
+        add(new THREE.Mesh(
+          new THREE.BoxGeometry(S * 0.3, H * 2.4, S * 0.3),
+          new THREE.MeshStandardMaterial({ color: '#9fe6ff', transparent: true, opacity: 0.7, emissive: '#2d9bd6', emissiveIntensity: 0.8, flatShading: true }),
+        )).position.y = H * 1.7;
+        break;
+      }
+      default: {
+        add(new THREE.Mesh(
+          new THREE.BoxGeometry(S * 0.7, H * 0.4, S * 0.7),
+          new THREE.MeshStandardMaterial({ color: '#8fa3b8', flatShading: true }),
+        )).position.y = H * 1.2;
+      }
+    }
+    g.userData.cell = cell;
+    parts.platforms.push(g);
+  }
+  root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   return root;
 }

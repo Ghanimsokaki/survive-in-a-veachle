@@ -64,6 +64,7 @@
   <div class="reticle" id="reticle">
     <div class="cross"></div>
     <div class="lock hidden" id="lockRing"><span>LOCK</span></div>
+    <div class="aim-mode" id="aimMode">AUTO</div>
     <div class="abyss hidden" id="abyssWarn">⚠ PULL UP — THE ABYSS</div>
   </div>
 
@@ -75,6 +76,8 @@
     <button data-act="interact"><span>🛰️</span>Tractor<kbd>E</kbd></button>
     <button data-act="build"><span>🏗️</span>Fortress<kbd>B</kbd></button>
     <button data-act="tiers"><span>🛸</span>Refit<kbd>U</kbd></button>
+    <button data-act="style" title="Toggle voxel / sci-fi fortress art"><span>🧱</span>Style<kbd>V</kbd></button>
+    <button data-act="aim" title="Toggle auto-lock / fully manual aim"><span>🎯</span>Aim<kbd>L</kbd></button>
     <button data-act="sound"><span id="soundIcon">🔊</span>Sound<kbd>O</kbd></button>
     <button data-act="help"><span>❔</span>Help<kbd>H</kbd></button>
   </div>
@@ -94,6 +97,12 @@
     </header>
     <p class="panel-sub">Structural upgrades rebuild the ship mesh in real time — saucer, nacelles, deflector, weapons.</p>
     <div class="tier-rows" id="tierRows"></div>
+    <button class="bulk-build bulk-upgrade" data-action="upgradeall">⚡ UPGRADE ALL — install every refit you can afford</button>
+    <div class="settings-row">
+      <button class="chip" data-action="style" id="styleChip">🏛️ Fortress: SCI-FI</button>
+      <button class="chip" data-action="aim" id="aimChip">🎯 Weapons: AUTO-LOCK</button>
+      <button class="chip" data-action="touch" id="touchChip">📱 Touch: AUTO</button>
+    </div>
     <p class="panel-note">Refit costs are drawn from the <b>fortress stores</b> — fly home and deposit salvage first.</p>
   </div>
 

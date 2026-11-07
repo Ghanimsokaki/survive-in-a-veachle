@@ -69,6 +69,20 @@ one is a real object with rules:
 Turrets aim and fire through the sim; the renderer just rotates their 3D heads to the
 stored angle. Sieges damage the shields first, then the hull.
 
+### Two fortress art styles
+
+`buildFort(THREE, fort, style)` picks one of two builders over the **same** rulebook — grid,
+costs, turret ranges and connections are identical, only the geometry changes:
+
+| Style | Look | Build |
+| --- | --- | --- |
+| `scifi` (default) | hex decks, glowing pylons, floating crystals | `buildFortScifi` |
+| `voxel` | chunky Minecraft-ish blocks, stepped crenellations, cube turret heads | `buildFortVoxel` |
+
+`V`, the **Style** hotbar button or the `#styleChip` HUD chip toggles it (`game.toggleStyle()`),
+and the existing fortress is rebuilt in place. Every piece is still its own group with an
+aimable turret, so swapping style never breaks the sim's bookkeeping.
+
 ## Sound and feedback
 
 There are **no audio files**: `js/audio.js` synthesises everything with WebAudio — a sawtooth
@@ -88,6 +102,20 @@ piece in every free cell that touches the existing deck, stopping when the grid 
 bank runs dry (`game.placeAll(kind)`). It is the fast way to grow a fortress perimeter after a
 siege, and it is covered by the headless tests.
 
+## UPGRADE ALL
+
+The refit panel's **⇪ UPGRADE ALL** button (and `ship.upgradeAll(bank)`) buys every refit it
+can afford, component by component, until the bank or the tier cap runs out:
+
+```js
+{ installed: [{component, tier}, …], spent: {titanium, dilithium, matrix}, ok: true }
+```
+
+It never assumes money it doesn't have — a sweep on a poor bank installs what it can and
+leaves every resource at zero or above, a second sweep on a maxed ship installs nothing, and
+the mesh is rebuilt exactly once afterwards. `game.upgradeAll()` wraps that in the sim, spends
+the real bank, fires the refit VFX and logs *"Refit sweep: n systems upgraded"*.
+
 ## Flight model
 
 Arcade six-axis: `W/S` throttle, `A/D` yaw, `↑/↓` pitch, `Space/C` climb/dive, `Shift`
@@ -96,10 +124,29 @@ smoothed third-person orbit — drag to orbit, wheel to zoom.
 
 Firing is **mouse-driven with a soft auto-lock assist**: phasers fire along the reticle ray,
 and if a hostile sits inside the lock cone the bolt homes gently onto it (torpedoes home hard).
-Fort turrets are fully automatic. Shields regenerate 4 s after the last hit; the **abyss**
+Fort turrets are fully automatic.
+
+`L`, the **Aim** hotbar button or `#aimChip` switches to **fully manual aim**
+(`game.settings.aimAssist = false`): no lock cone, no homing at all, bolts fly exactly along
+the reticle and torpedoes straight ahead — the badge under the crosshair reads `MANUAL` instead
+of `AUTO`. Learn the lead yourself. Settings are saved with the run and restored on load. Shields regenerate 4 s after the last hit; the **abyss**
 below the cloud line ignores shields entirely and eats the hull.
 
-## Architecture
+## Touch controls
+
+`js/touch.js` adds a `TouchControls` layer — a left thumb-stick (throttle / yaw), a right
+look-pad (pitch / camera orbit) and a column of action buttons (fire, torpedo, boost, warp,
+interact, build). It is **auto-detected** (`TouchControls.isSupported()`: `?touch=1`, a coarse
+pointer, or `ontouchstart`) and can be cycled `auto → on → off` with `P` or the `#touchChip`
+chip. While it is on, `body.touch-on` hides the keyboard hotbar and enlarges the HUD buttons.
+
+```js
+touch.state()   // → { forward, back, yaw, pitch, up, down, boost, fire } | null
+```
+
+That fragment is merged into the normal input object in `main.js`, so the flight model never
+knows whether a stick or a keyboard is driving it. The layer is a safe no-op headless — the
+boot suite mounts it, presses WARP and holds FIRE through real DOM events, then unmounts it.
 
 ```
 skyuss/
@@ -114,7 +161,8 @@ skyuss/
   js/ui.js            DOM HUD, panels, radar
   js/main.js          renderer, cloud sea, camera rig, input, scene sync, VFX
   js/audio.js         synthesised WebAudio (no assets)
-tools/skyuss-smoke.mjs   headless test: 129 assertions, no GPU required
+  js/touch.js         thumb-stick / look-pad / action buttons for phones
+tools/skyuss-smoke.mjs   headless test: 152 assertions, no GPU required
 ```
 
 The split is deliberate: **`sim.js` never imports Three.js and `main.js` never owns game
@@ -123,8 +171,8 @@ state**, so the entire gameplay loop can be run and asserted in Node.
 ## Tests
 
 ```bash
-npm run smoke:skyuss        # 129 assertions: sim + meshes, no GPU
-npm run smoke:skyuss:boot   # 24 assertions: boots the real renderer headlessly
+npm run smoke:skyuss        # 152 assertions: sim + meshes, no GPU
+npm run smoke:skyuss:boot   # 41 assertions: boots the real renderer headlessly
 npm run check               # syntax-check both games
 npm run test:all            # every suite in this repo
 ```
@@ -138,8 +186,9 @@ binds exists in `index.html`.
 `tools/skyuss-boot.mjs` goes further: it runs the **real `main.js`** inside jsdom against a
 stub WebGL2 context, so the whole renderer pipeline executes — shader compilation, scene
 graph, the animation loop, the HUD, the refit panel, the fortress tray, live mesh rebuilds
-after an upgrade or a build, BUILD ALL, the sound toggle, and combat frames with projectiles.
-That is 160k+ stub draw calls of coverage without a GPU.
+after an upgrade or a build, BUILD ALL, UPGRADE ALL, both fortress styles, the aim-mode
+switch, mounting and driving the touch layer, and combat frames with projectiles.
+That is 300k+ stub draw calls of coverage without a GPU.
 
 ## Controls
 
@@ -154,6 +203,9 @@ That is 160k+ stub draw calls of coverage without a GPU.
 | `LMB` | phasers · `RMB` photon torpedo |
 | `E` | strip derelict · survey island · deposit at the fortress |
 | `B` | fortress build mode |
-| `U` | Enterprise refit |
+| `U` | Enterprise refit · **⇪ UPGRADE ALL** in that panel |
+| `V` | fortress art style: sci-fi platforms ⇄ voxel blocks |
+| `L` | aim mode: auto-lock ⇄ fully manual |
+| `P` | touch controls: auto ⇄ on ⇄ off |
 | `1`–`8` | pick a fortress piece |
 | `H` | flight manual · `Esc` close |

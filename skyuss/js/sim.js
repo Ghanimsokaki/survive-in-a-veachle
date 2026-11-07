@@ -64,6 +64,8 @@ export class SkyGame {
     this.stats = { kills: 0, mined: 0, looted: 0, deposit: 0, deaths: 0, sieges: 0 };
     this.buildMode = false;
     this.enemySeq = 0;
+    // player preferences (persisted): fortress art style, aim assist, touch UI
+    this.settings = { style: 'scifi', aimAssist: true, touch: 'auto' };
   }
 
   /** Push a short-lived visual effect (rendered by main.js, faded here). */
@@ -95,6 +97,45 @@ export class SkyGame {
   get nearIsland() { return nearestIsland(this.world, this.pos, SCAVENGE.islandRange + 60); }
 
   // ------------------------------------------------------------------ upgrade
+  /** Sets a preference (style / aimAssist / touch) and reports the new value. */
+  setSetting(key, value) {
+    if (!(key in this.settings)) return undefined;
+    this.settings[key] = value;
+    if (key === 'aimAssist') {
+      this.lockedEnemy = value ? this.findLock() : null;
+      this.aimEnemy = null;
+    }
+    this.emit('', key === 'style'
+      ? `Fortress style: <b>${value === 'voxel' ? 'VOXEL BLOCKS' : 'SCI-FI PLATFORMS'}</b>`
+      : key === 'aimAssist'
+        ? `Weapons: <b>${value ? 'AUTO-LOCK ASSIST' : 'FULLY MANUAL AIM'}</b>`
+        : `Touch controls: <b>${value}</b>`);
+    return this.settings[key];
+  }
+
+  toggleStyle() {
+    return this.setSetting('style', this.settings.style === 'voxel' ? 'scifi' : 'voxel');
+  }
+
+  toggleAim() {
+    return this.setSetting('aimAssist', !this.settings.aimAssist);
+  }
+
+  upgradeAll() {
+    const res = this.ship.upgradeAll(this.bank);
+    if (res.ok) {
+      this.hull = Math.max(this.hull, this.ship.stats.hull * 0.9);
+      this.shields = this.ship.stats.maxShields;
+      const names = res.installed.map((i) => i.name).join(', ');
+      this.emit('good', `Refit sweep: ${res.installed.length} upgrade${res.installed.length > 1 ? 's' : ''} — ${names}.`);
+      this.fxRefit = (this.fxRefit || 0) + 1;
+      this.fxBurst('warp', this.pos.x, this.pos.y, this.pos.z, 4, 1.0);
+    } else {
+      this.emit('warn', 'Nothing affordable — bank more titanium and dilithium.');
+    }
+    return res;
+  }
+
   upgrade(component) {
     const res = this.ship.upgradeShip(component, this.bank);
     if (res.ok) {
@@ -237,7 +278,8 @@ export class SkyGame {
     const st = this.ship.stats;
     this.fireCd = 1 / st.fireRate;
     this.energy -= 3;
-    const dir = this.aimEnemy || this.aim;
+    const assisted = this.settings.aimAssist !== false;
+    const dir = (assisted && this.aimEnemy) || this.aim;
     const origin = {
       x: this.pos.x + this.forward.x * 9,
       y: this.pos.y + this.forward.y * 9,
@@ -252,7 +294,7 @@ export class SkyGame {
       },
       damage: st.weaponDamage,
       life: 2.2,
-      homing: this.lockedEnemy || null,
+      homing: assisted ? (this.lockedEnemy || null) : null,
       color: '#8ef2ff',
     };
     this.bolts.push(bolt);
@@ -266,7 +308,8 @@ export class SkyGame {
     if (this.torpCd > 0 || this.energy < 20) return null;
     this.torpCd = 3.2;
     this.energy -= 20;
-    const dir = this.aimEnemy || this.aim;
+    const assisted = this.settings.aimAssist !== false;
+    const dir = (assisted && this.aimEnemy) || this.aim;
     const bolt = {
       owner: 'ship',
       kind: 'torpedo',
@@ -274,7 +317,7 @@ export class SkyGame {
       vel: { x: dir.x * 190, y: dir.y * 190, z: dir.z * 190 },
       damage: this.ship.stats.weaponDamage * 4,
       life: 3.2,
-      homing: this.lockedEnemy || null,
+      homing: assisted ? (this.lockedEnemy || null) : null,
       color: '#ffd166',
       splash: 26,
     };
@@ -298,6 +341,7 @@ export class SkyGame {
 
   /** Nearest hostile inside the lock cone (or null) — the auto-lock assist. */
   findLock() {
+    if (this.settings && this.settings.aimAssist === false) return null;
     const fwd = this.forward;
     let best = null, bestScore = -1;
     for (const e of this.enemies) {
@@ -711,6 +755,7 @@ export class SkyGame {
         islands: this.world.islands.filter((i) => i.looted).map((i) => i.id),
       },
       siegeWave: this.siegeWave,
+      settings: { ...this.settings },
     };
   }
 
@@ -733,6 +778,7 @@ export class SkyGame {
       if (t) t.looted = true;
     }
     g.siegeWave = d.siegeWave || 0;
+    if (d.settings) Object.assign(g.settings, d.settings);
     g.fort.recompute();
     return g;
   }

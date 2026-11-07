@@ -8,6 +8,7 @@ import { buildFort, buildFortGrid } from './fort.js';
 import { buildIsland, buildDerelict, buildStorm, buildHomeBeacon } from './world.js';
 import { UI } from './ui.js';
 import { SkyAudio } from './audio.js';
+import { TouchControls } from './touch.js';
 import { FORT, PIECE_ORDER } from './config.js';
 
 const SAVE_KEY = 'skyuss_v1';
@@ -335,6 +336,24 @@ const state = {
 
 const audio = new SkyAudio();
 
+const touch = new TouchControls({
+  onAction: (what) => handleAction(what),
+  onOrbit: (dx, dy) => {
+    state.orbit.yaw -= dx * 0.006;
+    state.orbit.pitch = THREE.MathUtils.clamp(state.orbit.pitch + dy * 0.004, -0.5, 0.9);
+  },
+});
+
+function handleAction(what) {
+  if (!game) return;
+  if (what === 'build') toggleBuild();
+  else if (what === 'tiers') UI.toggle('tiers', game);
+  else if (what === 'warp') { if (game.warp()) state.shake = 0.6; }
+  else if (what === 'interact') doInteract();
+  else if (what === 'torpedo') game.fireTorpedo();
+  else if (what === 'fire') game.fire();
+}
+
 const boltMeshes = new Map();     // bolt object → mesh
 const enemyMeshes = new Map();    // enemy id → group
 const pickupMeshes = new Map();   // pickup object → mesh
@@ -370,14 +389,20 @@ function rebuildShipMesh() {
 
 function rebuildFort() {
   if (fortMesh) disposeGroup(fortMesh);
-  fortMesh = buildFort(THREE, game.fort);
+  fortMesh = buildFort(THREE, game.fort, game.settings.style);
   scene.add(fortMesh);
-  fortSig = game.fort.count + ':' + [...game.fort.cells.values()].map((c) => c.kind).join('');
+  fortSig = fortSignature();
   if (!gridMesh) {
     gridMesh = buildFortGrid(THREE, game.fort);
     gridMesh.visible = false;
     scene.add(gridMesh);
   }
+}
+
+function fortSignature() {
+  if (!game) return '';
+  return (game.settings.style || 'scifi') + ':' + game.fort.count + ':' +
+    [...game.fort.cells.values()].map((c) => c.kind).join('');
 }
 
 function buildWorldMeshes() {
@@ -408,6 +433,7 @@ function startGame(resume) {
   rebuildFort();
   homeBeacon.position.set(game.fort.x, game.fort.y - 2, game.fort.z);
 
+  applyTouchMode();
   audio.init();
   audio.resume();
   audio.setEnabled(audio.enabled);
@@ -440,21 +466,21 @@ UI.init({
   start: (resume) => startGame(resume),
   action: (act) => {
     if (!game) return;
-    if (act === 'build') toggleBuild();
-    else if (act === 'tiers') UI.toggle('tiers', game);
-    else if (act === 'help') UI.toggle('help', game);
-    else if (act === 'warp') { if (game.warp()) state.shake = 0.6; }
-    else if (act === 'interact') doInteract();
-    else if (act === 'fire') { game.fire(); }
-    else if (act === 'torpedo') game.fireTorpedo();
+    if (act === 'help') UI.toggle('help', game);
     else if (act === 'buildall') bulkBuild();
+    else if (act === 'style') toggleFortStyle();
+    else if (act === 'aim') toggleAimMode();
     else if (act === 'sound') {
       const on = audio.toggle();
       UI.toast(on ? '🔊 Audio on' : '🔇 Audio muted', '');
       UI.setSoundIcon(on);
-    }
+    } else handleAction(act);
   },
   buildAll: () => bulkBuild(),
+  upgradeAll: () => upgradeAllRefits(),
+  style: () => toggleFortStyle(),
+  aim: () => toggleAimMode(),
+  touch: () => cycleTouchMode(),
   upgrade: (component) => {
     const res = game.upgrade(component);
     if (res.ok) {
@@ -493,6 +519,56 @@ function exitBuild() {
   state.hoverCell = null;
 }
 
+function upgradeAllRefits() {
+  if (!game) return null;
+  const res = game.upgradeAll();
+  if (res.ok) {
+    rebuildShipMesh();
+    UI.banner('REFIT SWEEP', `${res.installed.length} upgrades installed.`, 3000);
+    audio.upgrade();
+    state.shake = 0.7;
+    persist();
+  }
+  UI.refreshTiers(game);
+  return res;
+}
+
+function toggleFortStyle() {
+  if (!game) return;
+  const style = game.toggleStyle();
+  fortSig = '';                 // force the mesh rebuild
+  rebuildFort();
+  UI.refreshBuild(game);
+  persist();
+  return style;
+}
+
+function toggleAimMode() {
+  if (!game) return;
+  const on = game.toggleAim();
+  UI.refreshSettings(game);
+  persist();
+  return on;
+}
+
+function applyTouchMode() {
+  if (!game) return;
+  const mode = game.settings.touch || 'auto';
+  const want = mode === 'on' || (mode === 'auto' && TouchControls.isSupported());
+  if (want && !touch.enabled) touch.mount(document.body);
+  else if (!want && touch.enabled) touch.unmount(document.body);
+  UI.refreshSettings(game);
+}
+
+function cycleTouchMode() {
+  if (!game) return;
+  const order = ['auto', 'on', 'off'];
+  const cur = order.indexOf(game.settings.touch || 'auto');
+  game.setSetting('touch', order[(cur + 1) % order.length]);
+  applyTouchMode();
+  persist();
+}
+
 function bulkBuild() {
   if (!game) return;
   const res = game.placeAll(UI.piece);
@@ -525,6 +601,9 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'KeyH') { UI.toggle('help', game); e.preventDefault(); }
   else if (k === 'KeyF') { if (game.warp()) state.shake = 0.5; }
   else if (k === 'KeyE') doInteract();
+  else if (k === 'KeyV') toggleFortStyle();
+  else if (k === 'KeyL') toggleAimMode();
+  else if (k === 'KeyP') cycleTouchMode();
   else if (k === 'KeyO') {
     const on = audio.toggle();
     UI.toast(on ? '🔊 Audio on' : '🔇 Audio muted', '');
@@ -634,6 +713,7 @@ function removeHovered() {
 // --------------------------------------------------------------- frame logic
 function buildInput(dt) {
   const k = state.keys;
+  const t = touch.enabled ? touch.state() : null;
   const input = {
     forward: !!k.KeyW,
     back: !!(k.KeyS),
@@ -642,9 +722,18 @@ function buildInput(dt) {
     up: !!(k.Space),
     down: !!(k.KeyC || k.ControlLeft || k.ControlRight),
     boost: !!(k.ShiftLeft || k.ShiftRight),
-    fire: state.mouseDown || !!k.KeyJ,
+    fire: state.mouseDown || !!k.KeyJ || !!(t && t.fire),
     torpedo: !!k.KeyK,
   };
+  if (t) {
+    input.forward = input.forward || t.forward;
+    input.back = input.back || t.back;
+    input.up = input.up || t.up;
+    input.down = input.down || t.down;
+    if (t.yaw) input.yaw = t.yaw;
+    if (t.pitch) input.pitch = t.pitch;
+    if (t.boost) input.boost = true;
+  }
   return input;
 }
 
@@ -877,8 +966,7 @@ function syncPickups() {
 }
 
 function syncFort(dt) {
-  const sig = game.fort.count + ':' + [...game.fort.cells.values()].map((c) => c.kind).join('');
-  if (sig !== fortSig) rebuildFort();
+  if (fortSignature() !== fortSig) rebuildFort();
   if (!fortMesh) return;
   fortMesh.position.set(0, 0, 0);
   // aim turret meshes
@@ -996,6 +1084,8 @@ window.__skyuss = {
   start: (resume) => startGame(resume),
   rebuildShip: () => rebuildShipMesh(),
   rebuildFort: () => rebuildFort(),
+  touch,
+  audio,
 };
 
 // surface anything unexpected instead of failing silently

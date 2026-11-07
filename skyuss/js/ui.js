@@ -30,6 +30,7 @@ export const UI = {
       lockRing: $('lockRing'), abyssWarn: $('abyssWarn'), reticle: $('reticle'),
       radar: $('radar'), tierRows: $('tierRows'), pieceGrid: $('pieceGrid'), fortStats: $('fortStats'),
       dmgFlash: $('dmgFlash'), soundIcon: $('soundIcon'),
+      styleChip: $('styleChip'), aimChip: $('aimChip'), touchChip: $('touchChip'), aimMode: $('aimMode'),
       hotbar: $('hotbar'), fatal: $('fatal'),
     };
     this.rctx = this.el.radar.getContext('2d');
@@ -45,6 +46,10 @@ export const UI = {
         else if (a === 'upgrade') handlers.upgrade && handlers.upgrade(act.dataset.id);
         else if (a === 'piece') this.pickPiece(act.dataset.id);
         else if (a === 'buildall') handlers.buildAll && handlers.buildAll();
+        else if (a === 'upgradeall') handlers.upgradeAll && handlers.upgradeAll();
+        else if (a === 'style') handlers.style && handlers.style();
+        else if (a === 'aim') handlers.aim && handlers.aim();
+        else if (a === 'touch') handlers.touch && handlers.touch();
       }
     });
 
@@ -128,7 +133,31 @@ export const UI = {
     else this.openHelp();
   },
 
+  /** The three preference chips + the aim-mode readout under the reticle. */
+  refreshSettings(game) {
+    const st = game.settings || {};
+    if (this.el.styleChip) {
+      this.el.styleChip.textContent = st.style === 'voxel' ? '🧱 Fortress: VOXEL BLOCKS' : '🏛️ Fortress: SCI-FI';
+      this.el.styleChip.classList.toggle('on', st.style === 'voxel');
+    }
+    if (this.el.aimChip) {
+      this.el.aimChip.textContent = st.aimAssist === false ? '🎯 Weapons: FULL MANUAL' : '🎯 Weapons: AUTO-LOCK';
+      this.el.aimChip.classList.toggle('on', st.aimAssist === false);
+    }
+    if (this.el.touchChip) {
+      const t = st.touch || 'auto';
+      this.el.touchChip.textContent = `📱 Touch: ${t.toUpperCase()}`;
+      this.el.touchChip.classList.toggle('on', t === 'on');
+    }
+    if (this.el.aimMode) {
+      const manual = st.aimAssist === false;
+      this.el.aimMode.textContent = manual ? 'MANUAL' : 'AUTO';
+      this.el.aimMode.classList.toggle('manual', manual);
+    }
+  },
+
   refreshTiers(game) {
+    this.refreshSettings(game);
     const rows = tierRows(game.ship);
     this.el.tierRows.innerHTML = rows.map((r) => {
       const pips = Array.from({ length: r.max + 1 }, (_, i) => `<span class="pip ${i <= r.tier ? 'on' : ''}"></span>`).join('');

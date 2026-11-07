@@ -225,6 +225,78 @@ key('Escape'); await frames();
   assert(errors.length === 0, 'audio toggle and effects raise no errors');
 }
 
+// (a) voxel fortress style through the live mesh pipeline
+{
+  const g = window.__skyuss.game;
+  key('KeyV'); await frames();
+  const fort = window.__skyuss.scene.children.find((o) => o.name === 'skyfort');
+  assert(g.settings.style === 'voxel', 'V switches the fortress art style to voxel blocks');
+  assert(fort && fort.style === 'voxel', 'the live fortress mesh was rebuilt as voxel blocks');
+  key('KeyV'); await frames();
+  const back = window.__skyuss.scene.children.find((o) => o.name === 'skyfort');
+  assert(g.settings.style === 'scifi' && back && back.style !== 'voxel', 'V switches back to sci-fi platforms');
+}
+
+// (b) fully manual aim
+{
+  const g = window.__skyuss.game;
+  key('KeyL'); await frames();
+  assert(g.settings.aimAssist === false, 'L turns auto-lock off');
+  assert(document.getElementById('aimMode').textContent === 'MANUAL', 'the reticle reports MANUAL aim');
+  g.enemies = [];
+  const e = g.spawnEnemy('skiff', { x: g.pos.x + 80, y: g.pos.y, z: g.pos.z });
+  g.lockedEnemy = e; g.aimEnemy = { x: 1, y: 0, z: 0 };
+  g.aim = { x: 0, y: 0, z: 1 };
+  g.fireCd = 0; g.energy = 100;
+  const bolt = g.fire();
+  await frames();
+  assert(bolt.homing === null && Math.abs(bolt.vel.x) < 1, 'manual shots fly straight down the reticle');
+  key('KeyL'); await frames();
+  assert(g.settings.aimAssist === true && document.getElementById('aimMode').textContent === 'AUTO', 'L restores auto-lock');
+}
+
+// UPGRADE ALL from the refit panel
+{
+  const g = window.__skyuss.game;
+  g.bank.titanium = 20000; g.bank.dilithium = 9000; g.bank.matrix = 200;
+  const before = g.ship.totalTier();
+  key('KeyU'); await frames();
+  const bulk = document.querySelector('[data-action="upgradeall"]');
+  assert(!!bulk, 'the refit panel offers UPGRADE ALL');
+  bulk.dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true }));
+  await frames();
+  assert(g.ship.totalTier() > before + 3, `UPGRADE ALL installed ${g.ship.totalTier() - before} tiers in one click`);
+  const ships = window.__skyuss.scene.children.filter((o) => o.name === 'enterprise').length;
+  assert(ships === 1, 'the ship mesh is rebuilt exactly once after the sweep');
+  key('Escape'); await frames();
+}
+
+// (c) touch controls: mount, drive, unmount
+{
+  const g = window.__skyuss.game;
+  const t = window.__skyuss.touch;
+  t.mount(document.body);
+  await frames();
+  assert(!!document.querySelector('.touch-ui'), 'the touch overlay mounts');
+  assert(document.body.classList.contains('touch-on'), 'the body switches to touch layout');
+  g.energy = 100; g.warpCd = 0;
+  const warps = g.fx.warps;
+  document.querySelector('[data-do="warp"]').dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true }));
+  await frames();
+  assert(g.fx.warps === warps + 1, 'the touch WARP button fires a warp dash');
+  const fireBtn = document.querySelector('[data-do="fire"]');
+  fireBtn.dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true }));
+  await frames();
+  assert(t.fireHeld === true, 'holding the touch FIRE button holds fire');
+  fireBtn.dispatchEvent(new window.MouseEvent('pointerup', { bubbles: true }));
+  await frames();
+  assert(t.fireHeld === false, 'releasing touch FIRE stops firing');
+  t.unmount(document.body);
+  await frames();
+  assert(!document.querySelector('.touch-ui') && !document.body.classList.contains('touch-on'), 'touch controls unmount cleanly');
+  assert(errors.length === 0, 'the touch layer raises no errors');
+}
+
 // a few more simulated seconds with combat noise
 await frames();
 assert(drew > 150, `the loop keeps rendering (${drew} draw calls)`);

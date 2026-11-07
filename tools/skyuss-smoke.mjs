@@ -51,6 +51,24 @@ section('Enterprise refit tiers');
   assert(ship.totalTier() === MAX_TIER * COMPONENTS.length, 'total tier counts all components');
   assert(bank.titanium < 20000, 'upgrades actually spend from the bank');
 
+  // UPGRADE ALL: buys every affordable refit in one sweep
+  {
+    const s2 = new Enterprise();
+    const rich = { titanium: 20000, dilithium: 9000, matrix: 200 };
+    const sweep = s2.upgradeAll(rich);
+    assert(sweep.ok && sweep.installed.length === MAX_TIER * COMPONENTS.length, `upgrade-all installs every refit (${sweep.installed.length})`);
+    assert(COMPONENTS.every((c) => s2.tier(c) === MAX_TIER), 'upgrade-all maxes every component');
+    assert(rich.titanium < 20000 && rich.dilithium < 9000, 'upgrade-all spends the bank');
+    assert(s2.upgradeAll(rich).installed.length === 0, 'a maxed ship has nothing left to buy');
+
+    const s3 = new Enterprise();
+    const poor = { titanium: 130, dilithium: 60, matrix: 0 };
+    const partial = s3.upgradeAll(poor);
+    assert(partial.ok && partial.installed.length >= 1 && partial.installed.length < MAX_TIER * COMPONENTS.length,
+      `upgrade-all stops when the bank runs dry (${partial.installed.length} installed)`);
+    assert(Object.values(poor).every((v) => v >= 0), 'upgrade-all never pushes the bank negative');
+  }
+
   const rows = tierRows(ship);
   assert(rows.length === 4 && rows.every((r) => r.cost === null), 'tier rows report the maxed state');
 }
@@ -146,6 +164,20 @@ section('sky fortress grid + meshes');
     m2.traverse((o) => { if (o.isMesh) n++; });
     assert(n >= 2, `${kind} builds a 3D piece (${n} meshes)`);
   }
+  {
+    const f2 = new SkyFort(0, 0, 0);
+    f2.place(6, 4, 'phaser', {}, { free: true });
+    f2.place(6, 5, 'shield', {}, { free: true });
+    f2.place(5, 6, 'matrix', {}, { free: true });
+    const scifi = buildFort(THREE, f2, 'scifi');
+    const voxel = buildFort(THREE, f2, 'voxel');
+    assert(voxel.isGroup && voxel.children.length === f2.count, 'voxel style builds one group per piece');
+    assert(voxel.userData.parts.turrets.length === f2.turrets.length, 'voxel turrets are aimable too');
+    assert(voxel.style === 'voxel' && scifi.style !== 'voxel', 'the two fortress styles are distinct meshes');
+    let vm = 0; voxel.traverse((o) => { if (o.isMesh) vm++; });
+    assert(vm >= f2.count * 2, `voxel pieces are chunky blocks (${vm} meshes)`);
+  }
+
   const grid = buildFortGrid(THREE, fort);
   assert(!!grid.userData.highlight && !!grid.userData.highlight.isMesh, 'build grid exposes its highlight cell');
 
@@ -331,6 +363,49 @@ section('effects bus + audio module');
 
   const built = g.placePiece(6, 4, 'platform');
   assert(built.ok && g.effects.some((x) => x.kind === 'build'), 'building emits a construction effect');
+}
+
+// ---------------------------------------------- aim modes, settings, touch UI
+section('settings: manual aim, art style, touch');
+{
+  const g = new SkyGame({ seed: 8 });
+  assert(g.settings.aimAssist === true && g.settings.style === 'scifi', 'defaults: auto-lock and sci-fi');
+  assert(g.toggleAim() === false, 'aim assist can be switched to fully manual');
+  assert(g.toggleStyle() === 'voxel', 'the fortress style can be switched to voxel blocks');
+
+  g.enemies = [];
+  const e = g.spawnEnemy('skiff', { x: g.pos.x + 100, y: g.pos.y, z: g.pos.z });
+  g.aim = { x: 0, y: 0, z: 1 };            // deliberately not at the target
+  g.lockedEnemy = e;
+  g.aimEnemy = { x: 1, y: 0, z: 0 };
+  g.fireCd = 0; g.energy = 100;
+  const bolt = g.fire();
+  assert(bolt.homing === null, 'manual aim never homes onto a target');
+  assert(Math.abs(bolt.vel.z - 260) < 1 && Math.abs(bolt.vel.x) < 1, 'manual aim fires exactly along the reticle');
+  assert(g.findLock() === null, 'the lock assist is inert in manual mode');
+
+  g.setSetting('aimAssist', true);
+  g.enemies = [e];
+  e.hp = e.hpMax;
+  g.fireCd = 0; g.energy = 100;
+  g.lockedEnemy = e;
+  const assisted = g.fire();
+  assert(assisted.homing === e, 'auto-lock homes onto the locked hostile');
+
+  g.setSetting('style', 'voxel');
+  g.setSetting('aimAssist', false);
+  const loaded = SkyGame.fromJSON(JSON.parse(JSON.stringify(g.toJSON())));
+  assert(loaded.settings.style === 'voxel' && loaded.settings.aimAssist === false, 'settings survive save/load');
+
+  const { TouchControls } = await import('../skyuss/js/touch.js');
+  assert(typeof TouchControls === 'function', 'the touch module loads without a DOM');
+  assert(TouchControls.isSupported() === false, 'touch is not auto-enabled in a headless shell');
+  const t = new TouchControls();
+  assert(t.state() === null, 'an unmounted touch pad reports no input');
+  t.stick = { x: -0.8, y: -0.9 };
+  t.enabled = true;
+  const st = t.state();
+  assert(st.forward && st.yaw > 0 && !st.back, 'the thumb-stick maps to throttle and yaw');
 }
 
 // ------------------------------------------------- module wiring / API names

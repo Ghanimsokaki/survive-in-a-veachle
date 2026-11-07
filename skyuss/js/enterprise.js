@@ -53,6 +53,33 @@ export class Enterprise {
     return { ok: true, tier: this.tiers[component], name: next.name, component };
   }
 
+  /**
+   * UPGRADE ALL: buy every refit you can afford, component by component, while
+   * the bank holds out. Returns what went in so the UI can show it off.
+   */
+  upgradeAll(bank) {
+    const installed = [];
+    const spent = {};
+    let guard = 0;
+    let progressed = true;
+    while (progressed && guard++ < COMPONENTS.length * (MAX_TIER + 1)) {
+      progressed = false;
+      for (const c of COMPONENTS) {
+        const next = this.next(c);
+        if (!next || !this.canAfford(next.cost, bank || {})) continue;
+        for (const [k, v] of Object.entries(next.cost)) {
+          bank[k] -= v;
+          spent[k] = (spent[k] || 0) + v;
+        }
+        this.tiers[c] += 1;
+        installed.push({ component: c, tier: this.tiers[c], name: next.name });
+        progressed = true;
+      }
+    }
+    if (installed.length) this.recompute();
+    return { installed, spent, ok: installed.length > 0 };
+  }
+
   /** Derive every gameplay stat from the installed tiers. */
   recompute() {
     const saucer = SHIP_UPGRADES.saucer[this.tiers.saucer];

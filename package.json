@@ -7,7 +7,7 @@
   "scripts": {
     "start": "python3 -m http.server 8000 --bind 0.0.0.0",
     "serve": "python3 -m http.server 8000 --bind 0.0.0.0",
-    "check": "node --check js/util.js && node --check js/data.js && node --check js/recipes.js && node --check js/world.js && node --check js/geo3d.js && node --check js/camera3d.js && node --check js/render.js && node --check js/ui.js && node --check js/game.js && node --check js/main.js && node --check skyuss/js/config.js && node --check skyuss/js/enterprise.js && node --check skyuss/js/fort.js && node --check skyuss/js/world.js && node --check skyuss/js/sim.js && node --check skyuss/js/ui.js && node --check skyuss/js/main.js",
+    "check": "node --check js/util.js && node --check js/data.js && node --check js/recipes.js && node --check js/world.js && node --check js/geo3d.js && node --check js/camera3d.js && node --check js/render.js && node --check js/ui.js && node --check js/game.js && node --check js/main.js && node --check skyuss/js/config.js && node --check skyuss/js/enterprise.js && node --check skyuss/js/fort.js && node --check skyuss/js/world.js && node --check skyuss/js/sim.js && node --check skyuss/js/touch.js && node --check skyuss/js/ui.js && node --check skyuss/js/main.js",
     "test": "node tools/smoke.mjs",
     "shots": "node tools/shot.mjs",
     "smoke": "node tools/smoke.mjs",
