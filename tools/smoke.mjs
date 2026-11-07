@@ -407,6 +407,15 @@ G.updateCraft(G.crafting.total * 0.5);
 assert(G.craftProgress() > 0.4 && G.craftProgress() < 0.6, 'craft progress tracks elapsed time');
 G.updateCraft(G.crafting.total);
 assert(!G.crafting, 'craft job finishes on its own');
+
+// the job must keep ticking while the crafting panel is open
+UI.openPanel('craft');
+assert(UI.panelOpen(), 'crafting book is open');
+G.craft(job.id);
+assert(!!G.crafting, 'craft started from inside the book');
+step(Math.ceil((G.crafting.total + 0.2) * 60));
+assert(!G.crafting, 'craft finishes while the panel is open');
+UI.closePanel();
 assert(Object.keys(G.consumables).length >= consBefore, 'timed craft delivered its output');
 
 // stations shorten the job

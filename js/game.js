@@ -1624,6 +1624,8 @@ export const G = {
   // ---------------------------------------------------------------- update
   update(dt) {
     if (this.screen !== 'playing' || !this.zone) return;
+    // timed crafting keeps ticking even while a panel (or the book) is open
+    this.updateCraft(dt);
     if (UI.panelOpen()) { this.updateCamera(0); return; }
     this.t += dt;
     this.playtime += dt;
@@ -1707,7 +1709,6 @@ export const G = {
       car.speed *= 0.02;
       if (car.anchorT === 0) UI.toast('⚓ Anchor released — you can drive again.', '');
     }
-    this.updateCraft(dt);
     this.updateTornado(dt);
     for (const k of ['dmg', 'armor', 'speed', 'magnet', 'smoke']) {
       if (this.buffs[k] > 0) this.buffs[k] = Math.max(0, this.buffs[k] - dt);
