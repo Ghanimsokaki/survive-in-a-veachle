@@ -658,6 +658,7 @@ export const UI = {
     this.el.hud.classList.toggle('hidden', !on);
     this.el.hotbar.classList.toggle('hidden', !on);
     this.el.resbar.classList.toggle('hidden', !on);
+    if (on) this._last.anchor = null; // force the anchor chip to redraw on restart
     if (!on) {
       this.el.prompt.classList.add('hidden');
       this.el.buffs.classList.add('hidden');
