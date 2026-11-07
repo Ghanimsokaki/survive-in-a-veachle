@@ -399,12 +399,14 @@ function buildCar(G, out) {
       const taken = !!(car.interior && car.interior[i]);
       const sel = i === hover;
       if (!taken) {
-        quad(out, wx, 1.11, wz, 1.2, 1.9, sel ? '#fde68a' : '#38bdf8', yaw, sel ? 0.55 : 0.2);
+        quad(out, wx, 1.11, wz, 1.2, 1.9, sel ? '#fde68a' : '#38bdf8', yaw, sel ? 0.6 : 0.3);
         for (const [ox, oz] of [[-0.5, -0.85], [0.5, -0.85], [-0.5, 0.85], [0.5, 0.85]]) {
           box(out, wx + ox * Math.cos(yaw) - oz * Math.sin(yaw), 1.24,
             wz + ox * Math.sin(yaw) + oz * Math.cos(yaw), 0.08, 0.34, 0.08,
             sel ? '#fde68a' : '#38bdf8', yaw, 0, 0, { alpha: 0.9 });
         }
+        const bob2 = 1.55 + Math.sin(G.t * 2.4 + i) * 0.06;
+        box(out, wx, bob2, wz, 0.24, 0.24, 0.24, sel ? '#fde68a' : '#38bdf8', G.t * 1.4, 0, 0, { alpha: 0.95 });
       }
     }
   }

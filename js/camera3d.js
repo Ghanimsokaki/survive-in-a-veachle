@@ -9,7 +9,7 @@ export const CAR_HALF_D = 2.6;
 export const CELL_UNITS = 1.3;
 
 // cabin interior: six mount points inside the body
-export const INTERIOR = { cx: -0.5, cz: 0, cols: 3, rows: 2, w: 4.0, d: 4.4, y: 1.15 };
+export const INTERIOR = { cx: -0.5, cz: 0, cols: 3, rows: 2, w: 3.4, d: 3.6, y: 1.15 };
 
 export function interiorSlotLocal(i) {
   const col = i % INTERIOR.cols, row = (i / INTERIOR.cols) | 0;
@@ -62,7 +62,7 @@ export const Camera3D = {
       dist = 8.5; height = 16; yaw = car.angle;
     } else if (mode === 'interior') {
       tx = carX - Math.cos(car.angle) * 0.5; ty = 1.4; tz = carZ - Math.sin(car.angle) * 0.5;
-      dist = 9.0; height = 8.4; yaw = car.angle + 1.05;
+      dist = 7.2; height = 7.4; yaw = car.angle + 1.05;
     } else if (mode === 'foot') {
       const p = G.player;
       tx = p.x * S; ty = 1.5; tz = p.y * S;
