@@ -37,7 +37,7 @@ export const UI = {
       bossBox: $('bossBox'), bossFill: $('bossFill'), weaponLine: $('weaponLine'),
       menu: $('menu'), saveMeta: $('saveMeta'), endScreen: $('endScreen'),
       endTitle: $('endTitle'), endSub: $('endSub'), endStats: $('endStats'),
-      minimap: $('minimap'), fps: $('fps'),
+      minimap: $('minimap'), fps: $('fps'), soundBtn: $('soundBtn'),
     };
 
     // resource chips are created once
@@ -97,6 +97,14 @@ export const UI = {
       if (e.target.id === 'craftAfford') { this._craft.afford = e.target.checked; this._craft.shown = 60; this.renderCraftList(); }
     });
   },
+  setSound(muted) {
+    const b = this.el.soundBtn || document.getElementById('soundBtn');
+    if (!b) return;
+    const span = b.querySelector('span');
+    if (span) span.textContent = muted ? '🔇' : '🔊';
+    b.classList.toggle('off', !!muted);
+  },
+
   // ------------------------------------------------------------- HUD
   updateHUD(G) {
     const car = G.car;
@@ -517,6 +525,7 @@ export const UI = {
             <li>Enemies spawn in every zone. Turrets and drones fire automatically.</li>
             <li>Ram enemies with spikes and speed if you like — the car takes the damage too.</li>
             <li><b>G</b> steps out of the car. Walk with <b>WASD</b>, shoot with the mouse, press <b>G</b> near the car to climb back in.</li>
+            <li><b>Space</b> sounds the horn. <b>O</b> (or the Sound button) mutes everything — the engine note follows your throttle, so it is worth hearing once.</li>
           </ul>
         </div>
         <div class="help-block">

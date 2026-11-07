@@ -4,6 +4,7 @@ import { BIOMES, INTERIOR_ITEMS } from './data.js';
 import { TAU, clamp, hashStr, angDiff } from './util.js';
 import { Camera3D, S, ROOF_Y, CAR_HALF_W, CAR_HALF_D, CELL_UNITS, INTERIOR, interiorSlotLocal } from './camera3d.js';
 import { box, limbBox, prismZ, prismY, cone, quad, disc, ring } from './geo3d.js';
+import { LOCOMOTIVE_MESH } from './models/locomotive.js';
 
 const THEMES = {
   java:  { g: '#33402b', g2: '#3b4831', road: '#2b2d27', fog: '#33402c', skyTop: '#0a1210', skyBot: '#3d4b3a' },
@@ -286,6 +287,44 @@ function buildLandmark(out, lm) {
   }
 }
 
+// ------------------------------------------------------------------ imported meshes
+// Meshes from tools/import-obj.mjs arrive as triangles with a baked colour,
+// in car-local units. Draw them with the car's yaw and an optional paint tint.
+export function drawMesh(out, mesh, { cx = 0, cz = 0, yaw = 0, ox = 0, oz = 0,
+  sx = 1, sy = 1, sz = 1, y = 0, flipX = false, tint = null, tintAmount = 0, alpha } = {}) {
+  const cos = Math.cos(yaw), sin = Math.sin(yaw);
+  const tc = tint ? [
+    parseInt(tint.slice(1, 3), 16), parseInt(tint.slice(3, 5), 16), parseInt(tint.slice(5, 7), 16),
+  ] : null;
+  const mixCache = new Map();
+  const blend = (hexIn) => {
+    if (!tc || !tintAmount) return hexIn;
+    if (mixCache.has(hexIn)) return mixCache.get(hexIn);
+    const ch = [1, 3, 5].map((i) => {
+      const a2 = parseInt(hexIn.slice(i, i + 2), 16);
+      return Math.round(a2 + (tc[(i - 1) / 2] - a2) * tintAmount);
+    });
+    const out2 = '#' + ch.map((v) => Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')).join('');
+    mixCache.set(hexIn, out2);
+    return out2;
+  };
+  for (const [tri, colour] of mesh) {
+    const pts = [];
+    for (const [lx, ly, lz] of tri) {
+      const x = ((flipX ? -lx : lx) + ox) * sx;
+      const z = (lz + oz) * sz;
+      pts.push({
+        x: cx + x * cos - z * sin,
+        y: ly * sy + y,
+        z: cz + x * sin + z * cos,
+      });
+    }
+    // mirroring flips the winding, so swap two corners to keep normals outwards
+    if (flipX) { const t = pts[1]; pts[1] = pts[2]; pts[2] = t; }
+    out.push({ p: pts, c: blend(colour), a: alpha === undefined ? CAR_ALPHA : alpha });
+  }
+}
+
 // ------------------------------------------------------------------ car
 let CAR_ALPHA = null;
 
@@ -409,39 +448,23 @@ function buildCar(G, out) {
     }
   }
 
-  // --- engine hood: timber-clad bonnet, stack, headlamp, cowcatcher
-  // Kept to flat boxes on purpose: the painter sorter handles well separated
-  // boxes far better than tall cylinders stacked at the same depth.
+  // --- engine nose: an imported Kenney locomotive (CC0) in front of the box
+  // The mesh comes from tools/import-obj.mjs; its chimney is where the smoke
+  // particles leave the wagon.
   {
-    // frame + buffer beam
-    carBox(out, G, 4.95, 0.88, 0, 2.3, 0.18, 2.3, IRON, 0, 0, 1);
-    for (const sz of [-1, 1]) carBox(out, G, 4.55, 0.74, sz * 0.85, 1.2, 0.14, 0.14, IRON_DK, 0, 0, 1);
-    carBox(out, G, 4.3, 1.02, 0, 0.24, 0.36, 3.6, IRON_DK, 0, 0, 1);
-    // bonnet
-    carBox(out, G, 5.0, 1.8, 0, 1.9, 1.55, 2.0, shallow ? '#5b463a' : paintTrim, 0, 0, 1);
-    carBox(out, G, 5.0, 2.62, 0, 1.72, 0.14, 1.86, IRON, 0, 0, 1);
-    carBox(out, G, 5.0, 2.72, 0, 1.5, 0.08, 1.6, IRON_LT, 0, 0, 1);
-    for (const lx of [4.5, 5.5]) carBox(out, G, lx, 1.8, 0, 0.11, 1.58, 2.08, IRON_LT, 0, 0, 1);
-    carBox(out, G, 5.0, 1.8, 0, 1.94, 0.1, 2.04, BRASS, 0, 0, 1);
-    // stack
-    carBox(out, G, 5.0, 3.02, 0, 0.52, 0.62, 0.52, IRON_DK, 0, 0, 1);
-    carBox(out, G, 5.0, 3.06, 0, 0.58, 0.1, 0.58, BRASS, 0, 0, 1);
-    carBox(out, G, 5.0, 3.38, 0, 0.68, 0.14, 0.68, IRON_DK, 0, 0, 1);
-    // headlamp
-    carBox(out, G, 5.86, 2.3, 0, 0.34, 0.4, 0.46, BRASS, 0, 0, 1);
-    carBox(out, G, 6.02, 2.3, 0, 0.05, 0.3, 0.36, LAMP, 0, 0, 1);
-    carBox(out, G, 5.86, 2.54, 0, 0.38, 0.07, 0.5, IRON_DK, 0, 0, 1);
-    // handrails along the bonnet
-    for (const sz of [-1, 1]) carBox(out, G, 5.0, 2.2, sz * 1.06, 1.7, 0.07, 0.07, BRASS, 0, 0, 1);
-    // cowcatcher: three slats a side, raked forward and down
-    for (const s of [-1, 1]) {
-      for (let i = 0; i < 3; i++) {
-        const wx = cx + (5.95 + i * 0.12) * Math.cos(yaw) - s * (0.3 + i * 0.16) * Math.sin(yaw);
-        const wz = cz + (5.95 + i * 0.12) * Math.sin(yaw) + s * (0.3 + i * 0.16) * Math.cos(yaw);
-        box(out, wx, 0.5 + i * 0.16, wz, 0.95, 0.09, 0.09, IRON_LT, yaw + s * 0.36, 0, 0.28, solid);
-      }
-    }
-    carBox(out, G, 6.4, 0.86, 0, 0.16, 0.16, 1.5, IRON_LT, 0, 0, 1);
+    // frame under the nose
+    carBox(out, G, 5.5, 0.9, 0, 3.4, 0.18, 2.8, IRON, 0, 0, 1);
+    for (const sz of [-1, 1]) carBox(out, G, 4.5, 0.74, sz * 0.7, 1.4, 0.14, 0.14, IRON_DK, 0, 0, 1);
+    carBox(out, G, 4.32, 1.04, 0, 0.24, 0.4, 3.4, IRON_DK, 0, 0, 1);   // buffer beam
+    drawMesh(out, LOCOMOTIVE_MESH, {
+      cx, cz, yaw,
+      ox: 6.35, oz: 0,
+      sx: 0.9, sy: 1.16, sz: 2.1,
+      y: 0.02,
+      tint: paint,
+      tintAmount: 0.22,
+      alpha: null,
+    });
   }
 
   // --- rear end: braced tailgate, steps, lantern, coupler

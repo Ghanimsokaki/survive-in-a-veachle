@@ -90,52 +90,5 @@ export function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// Tiny synthesized sound effects (no external assets).
-export const Sfx = {
-  ctx: null,
-  muted: false,
-  master: null,
-  init() {
-    if (this.ctx) return;
-    try {
-      const AC = window.AudioContext || window.webkitAudioContext;
-      if (!AC) return;
-      this.ctx = new AC();
-      this.master = this.ctx.createGain();
-      this.master.gain.value = 0.35;
-      this.master.connect(this.ctx.destination);
-    } catch (e) { /* audio is optional */ }
-  },
-  resume() {
-    this.init();
-    if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
-  },
-  tone(freq = 440, dur = 0.08, type = 'square', vol = 0.12, slide = 0) {
-    if (this.muted) return;
-    this.init();
-    if (!this.ctx) return;
-    try {
-      const t0 = this.ctx.currentTime;
-      const o = this.ctx.createOscillator();
-      const g = this.ctx.createGain();
-      o.type = type;
-      o.frequency.setValueAtTime(freq, t0);
-      if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t0 + dur);
-      g.gain.setValueAtTime(0.0001, t0);
-      g.gain.exponentialRampToValueAtTime(vol, t0 + 0.008);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-      o.connect(g).connect(this.master);
-      o.start(t0);
-      o.stop(t0 + dur + 0.02);
-    } catch (e) { /* ignore */ }
-  },
-  shoot() { this.tone(320, 0.05, 'square', 0.05, -160); },
-  turret() { this.tone(520, 0.045, 'sawtooth', 0.035, -220); },
-  hit() { this.tone(140, 0.07, 'triangle', 0.09, -60); },
-  loot() { this.tone(620, 0.07, 'sine', 0.09, 240); setTimeout(() => this.tone(880, 0.08, 'sine', 0.07), 60); },
-  craft() { this.tone(400, 0.09, 'triangle', 0.08, 200); setTimeout(() => this.tone(700, 0.12, 'sine', 0.07), 90); },
-  boom() { this.tone(90, 0.28, 'sawtooth', 0.16, -55); },
-  error() { this.tone(180, 0.12, 'square', 0.06, -40); },
-  click() { this.tone(500, 0.03, 'square', 0.04); },
-  travel() { [330, 440, 550, 660].forEach((f, i) => setTimeout(() => this.tone(f, 0.14, 'sine', 0.06), i * 110)); },
-};
+// Sound lives in its own module; re-exported so `U.Sfx` keeps working.
+export { Sfx } from './audio.js';

@@ -75,6 +75,7 @@ export const G = {
         else if (name === 'foot') this.toggleFoot();
         else if (name === 'anchor') this.deployAnchor();
         else if (name === 'shop') this.openShop();
+        else if (name === 'sound') this.toggleSound();
         else this.togglePanel(name);
       },
       closePanel: () => UI.closePanel(),
@@ -95,6 +96,13 @@ export const G = {
     };
   },
 
+  toggleSound() {
+    const muted = U.Sfx.toggleMute();
+    UI.setSound(muted);
+    UI.toast(muted ? '🔇 Sound off' : '🔊 Sound on', muted ? 'bad' : 'good');
+    if (!muted) U.Sfx.click();
+  },
+
   togglePanel(name) {
     if (this.screen !== 'playing') return;
     if (UI.panel === name) UI.closePanel();
@@ -112,6 +120,8 @@ export const G = {
   // ---------------------------------------------------------------- new game / save
   newGame() {
     this.t = 0; this.playtime = 0;
+    U.Sfx.resume();
+    U.Sfx.engineOn();
     this.res = Object.fromEntries(RES_KEYS.map((k) => [k, 0]));
     Object.assign(this.res, {
       scrap: 70, wood: 45, cloth: 25, rubber: 12, glass: 10, food: 30,
@@ -284,6 +294,7 @@ export const G = {
 
   toMenu() {
     this.screen = 'menu';
+    U.Sfx.engineOff();
     UI.showHUD(false);
     UI.closePanel();
     UI.hideEnd();
@@ -541,6 +552,8 @@ export const G = {
       const mapped = k === 'arrowup' ? 'w' : k === 'arrowdown' ? 's' : k === 'arrowleft' ? 'a' : k === 'arrowright' ? 'd' : k;
       this.keys[mapped] = true;
       if (k === 'e') { this.interactNow(); return; }
+      if (k === ' ') { U.Sfx.horn(); return; }
+      if (k === 'o') { this.toggleSound(); return; }
       if (k === 't') { this.travel(); return; }
       if (k === 'g') { this.toggleFoot(); return; }
       if (k === 'y') { this.deployAnchor(); return; }
@@ -1245,6 +1258,7 @@ export const G = {
     this.car.hull -= dmg;
     this.shake = Math.min(16, this.shake + 3.5);
     U.Sfx.hit();
+    if (dmg > 12 && Math.random() < 0.5) U.Sfx.hurt();
     this.floater(this.car.x + U.rand(-20, 20), this.car.y - 44, `-${Math.round(dmg)}`, '#f87171', 12);
     for (let i = 0; i < 5; i++) {
       this.particles.push({
@@ -1633,6 +1647,16 @@ export const G = {
     const car = this.car;
     const onWater = this.zone.def.isSea;
 
+    // sound: the engine, tyres, rattle and ambience follow the sim
+    U.Sfx.engineOn();
+    U.Sfx.update(dt, {
+      speed: car.speed,
+      throttle: (this.keys.w ? 1 : 0) - (this.keys.s ? 1 : 0),
+      steer: (this.keys.d ? 1 : 0) - (this.keys.a ? 1 : 0),
+      night: this.night,
+      tornadoDist: this.tornado ? U.dist(car.x, car.y, this.tornado.x, this.tornado.y) : null,
+    });
+
     // aim: cast the mouse ray onto the ground
     const src = this.actor();
     const hitPlane = Camera3D.screenToPlane(this.mouse.x, this.mouse.y, this.view, 0);
@@ -1676,8 +1700,8 @@ export const G = {
     // the stack puffs while the wagon is rolling
     if (Math.abs(car.speed) > 12 && Math.random() < dt * 7) {
       this.particles.push({
-        x: car.x + Math.cos(car.angle) * 100 + U.rand(-6, 6),
-        y: car.y + Math.sin(car.angle) * 100 + U.rand(-6, 6),
+        x: car.x + Math.cos(car.angle) * 128 + U.rand(-6, 6),
+        y: car.y + Math.sin(car.angle) * 128 + U.rand(-6, 6),
         vx: Math.cos(car.angle) * car.speed * 0.25 + U.rand(-14, 14),
         vy: Math.sin(car.angle) * car.speed * 0.25 + U.rand(-14, 14),
         life: 1.1, maxlife: 1.1, color: Math.random() < 0.5 ? '#6b7280' : '#9ca3af', size: 3 + Math.random() * 3,
@@ -2046,7 +2070,9 @@ export const G = {
     this.screen = 'dead';
     this.mouse.down = false;
     this.keys = {};
+    U.Sfx.engineOff();
     U.Sfx.boom();
+    U.Sfx.defeat();
     UI.closePanel();
     this.exitBuild();
     UI.showHUD(false);
@@ -2064,7 +2090,8 @@ export const G = {
     this.finale.done = true;
     this.mouse.down = false;
     this.keys = {};
-    U.Sfx.travel();
+    U.Sfx.engineOff();
+    U.Sfx.victory();
     UI.closePanel();
     this.exitBuild();
     UI.showHUD(false);

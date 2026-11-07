@@ -96,7 +96,7 @@ npm start                         # same thing
 Everything is drawn in real perspective:
 
 - **Camera** — a smoothed chase camera behind the car (`Camera3D`), a low third-person camera when you are on foot, and a top-down build camera over the roof or an x-ray camera over the open cabin. Screen-shake, focal-length FOV and projection all live in `js/camera3d.js`.
-- **Renderer** — `js/render.js` builds the frame from flat-shaded polygons: ground tiles with per-tile fog, roads with dashes, procedural low-poly ruins, wrecks, palms and landmarks, depth-sorted (painter's algorithm) with back-face culling, near-plane clipping and per-face sun shading. The car is a **timber wagon in the spirit of Roblox *Dead Rails***, modelled from ~200 boxes: an iron underframe with couplers, spoked iron wheels that roll with the distance travelled, a painted-plank body with iron banding, brass bolts and vertical board joints, warm lit windows, a braced tailgate with steps and a lantern, and a plank build deck with a riveted rim and timber rails. Ahead of the box sits an engine hood — clad bonnet, iron lid, brass-collared stack that puffs smoke while rolling, lit headlamp and a slatted cowcatcher. Raft floats slot under it all.
+- **Renderer** — `js/render.js` builds the frame from flat-shaded polygons: ground tiles with per-tile fog, roads with dashes, procedural low-poly ruins, wrecks, palms and landmarks, depth-sorted (painter's algorithm) with back-face culling, near-plane clipping and per-face sun shading. The car is a **timber wagon in the spirit of Roblox *Dead Rails***, modelled from ~200 boxes: an iron underframe with couplers, spoked iron wheels that roll with the distance travelled, a painted-plank body with iron banding, brass bolts and vertical board joints, warm lit windows, a braced tailgate with steps and a lantern, and a plank build deck with a riveted rim and timber rails. Ahead of the box sits an **engine nose drawn from a real 3D model**: Kenney's CC0 locomotive (`assets/models/kenney/`), baked into flat-shaded faces by `tools/import-obj.mjs` — see *The engine nose* below. Raft floats slot under it all.
 - **The rig** — the player, survivors and every humanoid enemy are built from an articulated hierarchy (pelvis → torso → head, two-segment legs, arms with a weapon in the right hand). The rig walks with a swinging gait, aims and holds the gun in front of the chest, and fires with a muzzle flash. It genuinely leaves the car: press `G`, walk around with `WASD`, shoot with the mouse, climb back in near the car. Enemy bullets can hit you on foot — get knocked down and you are dragged back behind the wheel with a dented hull.
 - **Mouse picking** — the cursor is unprojected into the world: a ground-plane ray for aiming, a roof-plane ray for build cells, and a cabin-plane ray for interior mount points.
 
@@ -127,6 +127,54 @@ stuck out sideways, the roof plate drifted off the chassis and the wheels scatte
 now uses the same rotation sense as `carBox` / `quad` / `prismZ`, and the smoke test pins it
 down: the wagon's own geometry is re-measured in car space at three headings (0, 0.75 and
 −1.9 rad) and must come out identical to 5 cm.
+
+## The engine nose (a real mesh, imported from the web)
+
+The renderer has no model loader, so `tools/import-obj.mjs` bakes one offline:
+
+1. **Source** — Kenney *Holiday Kit 2.0* `train-locomotive.obj` + `colormap.png`,
+   **CC0 1.0** (public domain). Attribution in `assets/models/kenney/README.md`.
+2. **Colours** — the kit is one material over a palette atlas, so the importer
+   samples the atlas at each face's UV centroid and bakes the hex colour into
+   the face. No textures at runtime.
+3. **Cheap faces** — triangles are merged back into coplanar quads (1452 → 1106
+   faces, about a third fewer fills) and sub-pixel facets are dropped.
+4. **Fit** — centred, rotated so its length runs along the car, dropped onto
+   y = 0 and scaled into car units, then emitted as `js/models/locomotive.js`.
+5. **Draw** — `drawMesh()` in `js/render.js` applies the car's yaw, offset and
+   per-axis scale, mirrors without breaking winding, and tints the palette 22%
+   toward the current paint so the red engine reads as part of the wagon.
+
+```bash
+node tools/import-obj.mjs     # assets/models/kenney/*.obj -> js/models/*.js
+node tools/mesh-preview.mjs   # render the mesh alone to shots/mesh-loco.png
+node tools/wagon-view.mjs     # three free-camera views of the whole wagon
+```
+
+The smoke test pins the pipeline down: every face must be a 3–4 point polygon
+with a baked `#rrggbb` colour, the atlas must have produced more than a handful
+of colours, `drawMesh` must rotate/scale exactly like the rest of the car, and
+the live wagon must contain the mesh ahead of the box.
+
+## Sound
+
+`js/audio.js` is a small synthesiser — still zero audio files:
+
+* **Master chain** — gain → `DynamicsCompressor` → speakers, plus a reverb bus
+  built from a generated impulse response, so explosions and the horn have a
+  tail instead of clicking off.
+* **Voices that follow the sim** — a three-oscillator engine (saw + square + sub)
+  through a low-pass that opens with throttle, tyre noise that rises with speed,
+  a timber rattle timed to the road, wind, night crickets, distant thunder, and
+  a rumble that fades in as a tornado closes. All of it is driven once per frame
+  by `Sfx.update(dt, {speed, throttle, steer, night, tornadoDist})`.
+* **Layered one-shots** — shots are a noise crack plus a pitched body; hits are
+  a metallic band-pass ping; explosions stack a filtered noise sweep, a sub
+  thump and a transient; loot, crafting, building, gear changes, skids, the
+  two-tone **horn** (Space) and victory/defeat stings all keep that shape.
+* **Mixer** — `O` or the **Sound** hotbar button mutes; volume and mute persist
+  in `localStorage`. Everything no-ops without an `AudioContext`, which is how
+  the headless suite can run the whole game.
 
 ## Inside the cabin
 

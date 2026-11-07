@@ -711,3 +711,7 @@ button.ghost:hover { border-color: var(--amber); color: var(--amber-2); }
   letter-spacing: 0.12em; transition: background 0.15s, border-color 0.15s;
 }
 .game-link:hover { background: rgba(61, 139, 255, 0.26); border-color: rgba(103, 224, 255, 0.7); }
+
+/* sound toggle: dim while muted */
+#hotbar button.off { opacity: 0.55; }
+#hotbar button.off span { filter: grayscale(1); }

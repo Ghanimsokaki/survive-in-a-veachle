@@ -582,12 +582,166 @@ const { box: geoBox } = await import('../js/geo3d.js');
   G.zone.def = G.zone.def || {};
   step(1);
   const spin0 = G.car.wheelSpin;
-  G.car.speed = 120;
-  step(10);
+  G.keys = { w: true };
+  step(60);
   assert(G.car.wheelSpin > spin0, 'wheels roll with the distance travelled');
   const smoke = G.particles.filter((p) => p.color === '#6b7280' || p.color === '#9ca3af');
   assert(smoke.length > 0, 'the stack puffs smoke while rolling');
+  G.keys = {};
   G.car.speed = 0;
+}
+
+// ---------------------------------------------------------------- imported mesh
+{
+  const { drawMesh, carFaces } = await import('../js/render.js');
+  const { LOCOMOTIVE_MESH } = await import('../js/models/locomotive.js');
+
+  assert(Array.isArray(LOCOMOTIVE_MESH) && LOCOMOTIVE_MESH.length > 500,
+    `the imported Kenney locomotive mesh loads (${LOCOMOTIVE_MESH.length} faces)`);
+  const bad = LOCOMOTIVE_MESH.filter(([pts, colour]) => pts.length < 3 || pts.length > 4
+    || !/^#[0-9a-f]{6}$/.test(colour) || pts.some((p) => p.length !== 3 || p.some((n) => !Number.isFinite(n))));
+  assert(bad.length === 0, 'every mesh face is a 3-4 point polygon with a baked colour');
+
+  // the atlas sampling produced real Kenney colours, not black
+  const colours = new Set(LOCOMOTIVE_MESH.map(([, c]) => c));
+  assert(colours.size > 6 && !colours.has('#000000'), `the colour atlas was sampled (${colours.size} colours)`);
+
+  // drawMesh must apply yaw, offset and scale exactly like the rest of the car
+  const synthetic = [[[[1, 0, 0], [0, 0, 0], [0, 1, 0]], '#123456']];
+  const out = [];
+  drawMesh(out, synthetic, { cx: 10, cz: 20, yaw: Math.PI / 2, ox: 0, oz: 0, sx: 2, sy: 1, sz: 1, y: 1 });
+  const p0 = out[0].p[0];
+  assert(Math.abs(p0.x - (10 + 0)) < 1e-9 && Math.abs(p0.z - (20 + 2)) < 1e-9 && Math.abs(p0.y - 1) < 1e-9,
+    'mesh vertices rotate and scale in car space');
+  assert(out[0].c === '#123456', 'mesh colours pass through untouched');
+
+  // the live wagon really does contain the mesh
+  G.newGame();
+  const faces = carFaces(G);
+  const carX = G.car.x * 0.05;
+  const ahead = faces.filter((f) => f.p.every((p) => p.x - carX > 4.4));
+  assert(ahead.length > 100, `the engine nose is drawn from the mesh (${ahead.length} faces ahead of the box)`);
+  const tinted = new Set(ahead.map((f) => f.c));
+  assert(tinted.size > 5, `the nose keeps its baked palette, tinted to the paint (${tinted.size} colours)`);
+  let maxX = -1e9;
+  for (const f of faces) for (const p of f.p) maxX = Math.max(maxX, p.x - G.car.x * 0.05);
+  assert(maxX > 7, `the locomotive reaches ahead of the wagon (${maxX.toFixed(1)} units)`);
+}
+
+// ---------------------------------------------------------------- audio engine
+// A recording mock of WebAudio: every node remembers what was scheduled on it.
+{
+  const param = (v = 0) => ({
+    value: v, calls: [],
+    setValueAtTime(x) { this.value = x; this.calls.push(x); return this; },
+    linearRampToValueAtTime(x) { this.value = x; this.calls.push(x); return this; },
+    exponentialRampToValueAtTime(x) { this.value = x; this.calls.push(x); return this; },
+    setTargetAtTime(x) { this.value = x; this.calls.push(x); return this; },
+  });
+  const made = { osc: 0, noise: 0, gains: [], filters: [] };
+  const node = (extra = {}) => {
+    const n = { connect(dest) { n.out = dest; return dest; }, ...extra };
+    return n;
+  };
+  class FakeAC {
+    constructor() {
+      this.currentTime = 0;
+      this.sampleRate = 8000;
+      this.state = 'running';
+      this.destination = node();
+    }
+    resume() { this.state = 'running'; return Promise.resolve(); }
+    createGain() {
+      const g = node({ gain: param(1) });
+      made.gains.push(g);
+      return g;
+    }
+    createDynamicsCompressor() {
+      return node({ threshold: param(), knee: param(), ratio: param(), attack: param(), release: param() });
+    }
+    createConvolver() { return node({ buffer: null }); }
+    createStereoPanner() { return node({ pan: param(0) }); }
+    createBiquadFilter() {
+      const f = node({ type: 'lowpass', frequency: param(350), Q: param(1) });
+      made.filters.push(f);
+      return f;
+    }
+    createBuffer(ch, len) {
+      const data = new Float32Array(len);
+      return { getChannelData: () => data, length: len };
+    }
+    createBufferSource() {
+      made.noise++;
+      return node({ buffer: null, loop: false, start() {}, stop() {}, stopAt: null });
+    }
+    createOscillator() {
+      made.osc++;
+      return node({
+        type: 'sine',
+        frequency: param(440),
+        start() {}, stop() {},
+      });
+    }
+  }
+  window.AudioContext = FakeAC;
+  const { Sfx } = await import('../js/audio.js');
+
+  assert(Sfx.init() === true, 'the sound engine boots when an AudioContext exists');
+  assert(Sfx.ready && Sfx.master && Sfx.comp && Sfx.verb, 'master chain: gain, compressor and reverb bus');
+  assert(Math.abs(Sfx.master.gain.value - Sfx.volume) < 1e-6, 'master gain follows the saved volume');
+
+  Sfx.engineOn();
+  assert(!!Sfx.engine && Sfx.engine.oscs.length === 3, 'the engine idles on three detuned oscillators');
+  const idle = Sfx.engine.oscs[0].frequency.value;
+  Sfx.update(1 / 60, { speed: 150, throttle: 1, steer: 0.9, night: 0.8, tornadoDist: 200 });
+  const revved = Sfx.engine.oscs[0].frequency.value;
+  assert(revved > idle + 20, `the engine note climbs with throttle (${idle.toFixed(0)} -> ${revved.toFixed(0)} Hz)`);
+  assert(Sfx.engine.lp.frequency.value > 900, 'the engine filter opens up under load');
+  assert(Sfx.road.gain.gain.value > 0.01, 'tyre noise rises with speed');
+  assert(Sfx.rumble.gain.gain.value > 0.02, 'a nearby tornado rumbles');
+  Sfx.update(1 / 60, { speed: 0, throttle: 0, night: 0, tornadoDist: null });
+  assert(Sfx.engine.oscs[0].frequency.value < revved, 'the note falls back when you coast');
+  assert(Sfx.rumble.gain.gain.value < 0.01, 'the rumble fades with distance');
+
+  const before = { osc: made.osc, noise: made.noise };
+  const shots = ['shoot', 'turret', 'hit', 'boom', 'loot', 'craft', 'build', 'error', 'click',
+    'travel', 'horn', 'skid', 'gear', 'hurt', 'thunder'];
+  let threw = null;
+  try { for (const fn of shots) Sfx[fn](); } catch (e) { threw = e.message; }
+  assert(!threw, 'every one-shot plays without throwing');
+  assert(made.osc > before.osc + 5 && made.noise > before.noise + 5,
+    `the layered one-shots really make sound (${made.osc - before.osc} tones, ${made.noise - before.noise} noise bursts)`);
+  const layered = made.filters.filter((f) => f.type === 'highpass' || f.type === 'bandpass').length;
+  assert(layered > 4, 'noise is shaped through filters, not played raw');
+
+  Sfx.setVolume(0.25);
+  assert(Math.abs(Sfx.master.gain.value - 0.25) < 1e-6, 'the volume knob reaches the master gain');
+  assert(Sfx.toggleMute() === true, 'mute works');
+  assert(Sfx.master.gain.value === 0, 'muting silences the master bus');
+
+  // the game routes its own controls to the mixer
+  const mutedBefore = Sfx.muted;
+  window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'o' }));
+  assert(Sfx.muted !== mutedBefore, 'pressing O toggles sound');
+  const btn = document.getElementById('soundBtn');
+  assert(btn && btn.textContent.includes(Sfx.muted ? '🔇' : '🔊'), 'the Sound button reflects the state');
+  let horns = 0;
+  const realHorn = Sfx.horn;
+  Sfx.horn = () => { horns++; };
+  window.dispatchEvent(new window.KeyboardEvent('keydown', { key: ' ' }));
+  Sfx.horn = realHorn;
+  assert(horns === 1, 'Space sounds the horn');
+
+  Sfx.setMuted(false);
+  Sfx.engineOff();
+  assert(!Sfx.engine, 'the engine shuts down when you leave the car');
+  Sfx.muted = false;
+  Sfx.ctx = null;
+  Sfx.master = null;
+  Sfx.engine = null;
+  Sfx.road = null; Sfx.wind = null; Sfx.rumble = null;
+  Sfx.update(1 / 60, { speed: 100 });
+  assert(true, 'the audio layer is inert again once the context is gone');
 }
 
 console.log('\n--- errors (' + errors.length + ') ---');

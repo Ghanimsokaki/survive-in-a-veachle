@@ -68,10 +68,11 @@ export const Camera3D = {
       tx = p.x * S; ty = 1.5; tz = p.y * S;
       dist = 7.4; height = 4.1; yaw = G.camYaw;
     } else {
-      tx = carX + Math.cos(car.angle) * 2.0;
-      ty = 1.95;
-      tz = carZ + Math.sin(car.angle) * 2.0;
-      dist = 16.5; height = 10.6; yaw = car.angle;
+      // slightly high and forward: enough to see the engine nose over the deck
+      tx = carX + Math.cos(car.angle) * 2.9;
+      ty = 2.05;
+      tz = carZ + Math.sin(car.angle) * 2.9;
+      dist = 17.4; height = 12.4; yaw = car.angle;
     }
 
     const fx = Math.cos(yaw), fz = Math.sin(yaw);
