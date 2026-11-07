@@ -1,6 +1,6 @@
 // DOM interface: HUD, crafting book, build tray, crew, satchel, dock shop, route.
 import { RECIPES, RECIPE_BY_ID, CATEGORIES, RECIPE_COUNT } from './recipes.js';
-import { RES, RES_KEYS, ROLES, SHOP_ITEMS, STATION_NAMES } from './data.js';
+import { RES, RES_KEYS, ROLES, SHOP_ITEMS, STATION_NAMES, INTERIOR_ITEMS } from './data.js';
 import { ZONES } from './world.js';
 import { fmt, clamp } from './util.js';
 
@@ -29,6 +29,7 @@ export const UI = {
       hotbar: $('hotbar'), panelLayer: $('panelLayer'), panel: $('panel'), panelTitle: $('panelTitle'),
       panelSub: $('panelSub'), panelBody: $('panelBody'), panelClose: $('panelClose'),
       buildTray: $('buildTray'), trayItems: $('trayItems'), trayHint: $('trayHint'), buildExit: $('buildExit'),
+      trayRoof: $('trayRoof'), trayInterior: $('trayInterior'),
       waveBox: $('waveBox'), waveLabel: $('waveLabel'), waveFill: $('waveFill'),
       bossBox: $('bossBox'), bossFill: $('bossFill'), weaponLine: $('weaponLine'),
       menu: $('menu'), saveMeta: $('saveMeta'), endScreen: $('endScreen'),
@@ -52,9 +53,13 @@ export const UI = {
     });
     this.el.panelClose.addEventListener('click', () => actions.closePanel());
     this.el.buildExit.addEventListener('click', () => actions.exitBuild());
+    this.el.trayRoof.addEventListener('click', () => actions.setBuildTarget('roof'));
+    this.el.trayInterior.addEventListener('click', () => actions.setBuildTarget('interior'));
     this.el.trayItems.addEventListener('click', (e) => {
       const it = e.target.closest('.tray-item');
-      if (it) actions.selectBuild(it.dataset.id);
+      if (!it) return;
+      if (it.dataset.int) actions.selectInterior(it.dataset.int);
+      else if (it.dataset.id) actions.selectBuild(it.dataset.id);
     });
 
     this.el.panelBody.addEventListener('click', (e) => {
@@ -474,6 +479,7 @@ export const UI = {
             <li>Aim with the mouse, hold <b>left click</b> to fire. Shots use ammo; without ammo you fire weak improvised rounds.</li>
             <li>Enemies spawn in every zone. Turrets and drones fire automatically.</li>
             <li>Ram enemies with spikes and speed if you like — the car takes the damage too.</li>
+            <li><b>G</b> steps out of the car. Walk with <b>WASD</b>, shoot with the mouse, press <b>G</b> near the car to climb back in.</li>
           </ul>
         </div>
         <div class="help-block">
@@ -493,6 +499,7 @@ export const UI = {
             <li>Walls and shield plates add armour, storage adds material cap, beds add crew berths.</li>
             <li>Workbench → Advanced Workshop → Nano Lab unlock higher recipe tiers.</li>
             <li>Right-click a cell to tear the module off and get it back.</li>
+            <li>Press <b>Tab</b> in build mode for the <b>interior</b>: 6 mount points inside the cabin take furniture (cot, stove, fridge, lamp, radio, safe…). Click a mount point to install.</li>
           </ul>
         </div>
         <div class="help-block">
@@ -507,6 +514,7 @@ export const UI = {
         <div class="help-block">
           <h3>The journey</h3>
           <ul>
+            <li>Everything is rendered in 3D — the camera chases the car, and you can walk around it on foot.</li>
             <li>Start in Java. Loot your way across Indonesia.</li>
             <li>At <b>Sunda Docks</b> buy a <b>Raft Kit</b> (🛶 ≈ 950) and a <b>Ship Engine</b> (⛴️ ≈ 1500), or craft improvised ones.</li>
             <li>Cross Malacca, Bengal, the Arabian Sea and the Atlantic.</li>
@@ -527,6 +535,25 @@ export const UI = {
 
   // ------------------------------------------------------------- build tray
   renderBuildTray(G) {
+    this.setBuildTarget(G.buildTarget || 'roof');
+    if (G.buildTarget === 'interior') {
+      this.el.trayItems.innerHTML = INTERIOR_ITEMS.map((it) => {
+        const cost = G.interiorCost(it);
+        const afford = G.canAfford(cost);
+        const costTxt = Object.entries(cost).map(([k, v]) => `${RES[k].icon}${v}`).join(' ');
+        return `<button class="tray-item ${G.interiorSelected === it.id ? 'selected' : ''} ${afford ? '' : 'poor'}" data-int="${it.id}">
+          <div class="ti-top"><span class="ti-icon">${it.icon}</span><span class="ti-count">${afford ? '✔' : '✕'}</span></div>
+          <div class="ti-name">${esc(it.name)}</div>
+          <div class="ti-tier">${costTxt}</div>
+          <div class="ti-desc">${esc(it.desc)}</div>
+        </button>`;
+      }).join('');
+      const sel = INTERIOR_ITEMS.find((i) => i.id === G.interiorSelected);
+      this.el.trayHint.textContent = sel
+        ? `${sel.name}: click a mount point inside the cabin · right-click removes · Tab switches to the roof`
+        : 'Pick furniture, then click a mount point inside the cabin.';
+      return;
+    }
     const items = Object.entries(G.buildInv).filter(([, n]) => n > 0);
     if (!items.length) {
       this.el.trayItems.innerHTML = `<div class="tray-empty">No modules in the tray. Craft <b>Building</b> recipes to fill it up.</div>`;
@@ -542,8 +569,14 @@ export const UI = {
       }).join('');
     }
     this.el.trayHint.textContent = G.buildSelected
-      ? 'Click a cell on the car to place · right-click to remove · B or Esc to exit'
-      : 'Pick a module, then click a cell on the car.';
+      ? 'Click a cell on the car roof to place · right-click to remove · Tab for the interior'
+      : 'Pick a module, then click a cell on the car roof.';
+  },
+
+  setBuildTarget(target) {
+    const roof = target !== 'interior';
+    if (this.el.trayRoof) this.el.trayRoof.classList.toggle('active', roof);
+    if (this.el.trayInterior) this.el.trayInterior.classList.toggle('active', !roof);
   },
 
   setBuildMode(on) {

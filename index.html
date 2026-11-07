@@ -74,6 +74,7 @@
   <div id="hotbar" class="hotbar hidden">
     <button data-act="craft" title="Crafting (C)"><span>🛠️</span>Craft<kbd>C</kbd></button>
     <button data-act="build" title="Build mode (B)"><span>🏠</span>Build<kbd>B</kbd></button>
+    <button data-act="foot" title="Get out / get back in (G)"><span>🚶</span>Walk<kbd>G</kbd></button>
     <button data-act="crew" title="Crew (N)"><span>👥</span>Crew<kbd>N</kbd></button>
     <button data-act="items" title="Satchel (I)"><span>🎒</span>Items<kbd>I</kbd></button>
     <button data-act="route" title="Route (M)"><span>🗺️</span>Route<kbd>M</kbd></button>
@@ -86,6 +87,10 @@
       <div>
         <b>BUILD MODE</b>
         <span class="tray-hint" id="trayHint">Pick a module, then click a cell on the car.</span>
+      </div>
+      <div class="tray-tabs">
+        <button id="trayRoof" class="active">🛖 Roof</button>
+        <button id="trayInterior">🪑 Interior <kbd>Tab</kbd></button>
       </div>
       <button id="buildExit">Done (B)</button>
     </div>
@@ -124,12 +129,13 @@
       </div>
       <div class="menu-meta" id="saveMeta"></div>
       <div class="key-list">
-        <span><kbd>W A S D</kbd> drive</span>
+        <span><kbd>W A S D</kbd> drive / walk</span>
         <span><kbd>Mouse</kbd> aim</span>
         <span><kbd>Click</kbd> shoot</span>
         <span><kbd>E</kbd> loot / talk / shop</span>
         <span><kbd>T</kbd> depart</span>
-        <span><kbd>B</kbd> build</span>
+        <span><kbd>B</kbd> build · <kbd>Tab</kbd> roof/interior</span>
+        <span><kbd>G</kbd> get out / get in</span>
         <span><kbd>C</kbd> craft</span>
         <span><kbd>Esc</kbd> close</span>
       </div>

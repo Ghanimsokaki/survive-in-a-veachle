@@ -2,11 +2,12 @@
 import * as U from './util.js';
 import {
   RES, RES_KEYS, MODULE_KINDS, STATION_NAMES, ENEMY_TYPES, ROLES,
-  SHOP_ITEMS, rollLoot, NAMES,
+  SHOP_ITEMS, rollLoot, NAMES, INTERIOR_ITEMS, INTERIOR_BY_ID,
 } from './data.js';
 import { RECIPES, RECIPE_BY_ID } from './recipes.js';
 import { ZONES, genZone } from './world.js';
 import { draw, drawMinimap, carCellPos } from './render.js';
+import { Camera3D } from './camera3d.js';
 import { UI } from './ui.js';
 
 const SAVE_KEY = 'how_save_v2';
@@ -27,11 +28,13 @@ export const G = {
   camera: { x: 0, y: 0, zoom: 1 },
   view: { w: 1280, h: 800 },
   keys: {}, mouse: { x: 0, y: 0, down: false },
-  aimAngle: 0, fireCd: 0, fireFlash: 0,
+  aimAngle: 0, fireCd: 0, fireFlash: 0, aimPoint: { x: 0, y: 0 },
+  player: { x: 0, y: 0, face: 0, onFoot: false, walkPhase: 0, moving: false, hp: 100, maxHp: 100 },
+  camYaw: 0,
   shake: 0, zoneTime: 0, spawnTimer: 0, magnetTimer: 0,
   finale: null, buffs: { dmg: 0, armor: 0, armorAmt: 0, speed: 0, magnet: 0, smoke: 0 },
   run: { kills: 0, looted: 0, crafted: 0, distance: 0, visited: 1 },
-  buildMode: false, buildSelected: null,
+  buildMode: false, buildSelected: null, buildTarget: 'roof', interiorSelected: null,
   interact: null,
   canvas: null, ctx: null,
   _houseMarks: { a: false, b: false, c: false },
@@ -49,7 +52,7 @@ export const G = {
   },
 
   resize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     const w = window.innerWidth, h = window.innerHeight;
     this.canvas.width = Math.floor(w * dpr);
     this.canvas.height = Math.floor(h * dpr);
@@ -65,6 +68,7 @@ export const G = {
     return {
       panel: (name) => {
         if (name === 'build') this.toggleBuild();
+        else if (name === 'foot') this.toggleFoot();
         else if (name === 'shop') this.openShop();
         else this.togglePanel(name);
       },
@@ -76,6 +80,9 @@ export const G = {
       buy: (id) => this.buy(id),
       sell: (k, qty) => this.sell(k, qty),
       selectBuild: (id) => { this.buildSelected = id; UI.renderBuildTray(this); },
+      selectInterior: (id) => this.selectInterior(id),
+      setBuildTarget: (t) => this.setBuildTarget(t),
+      toggleFoot: () => this.toggleFoot(),
       exitBuild: () => this.exitBuild(),
       retry: () => this.retry(),
       endMenu: () => this.toMenu(),
@@ -118,8 +125,10 @@ export const G = {
       w: 172, h: 120,
       hull: 500, hullMax: 500, power: 120,
       grid: { cols: 6, rows: 4, cell: 26, cells: new Array(24).fill(null) },
+      interior: new Array(6).fill(null),
       raft: false, engine: false,
     };
+    this.player = { x: 0, y: 0, face: 0, onFoot: false, walkPhase: 0, moving: false, hp: 100, maxHp: 100 };
     this.run = { kills: 0, looted: 0, crafted: 0, distance: 0, visited: 1 };
     this._houseMarks = { a: false, b: false, c: false };
     this._warnedSink = false;
@@ -175,6 +184,7 @@ export const G = {
         car: {
           hull: this.car.hull, hullMax: this.car.hullMax, raft: this.car.raft, engine: this.car.engine,
           cells: this.car.grid.cells.map((c) => (c ? c.id : null)),
+          interior: (this.car.interior || []).map((m) => (m ? m.id : null)),
         },
         run: this.run,
         playtime: this.playtime,
@@ -226,8 +236,14 @@ export const G = {
       x: 0, y: 0, angle: 0, speed: 0, steerFront: 0,
       w: 172, h: 120, hull: car.hull || 500, hullMax: 500, power: 100,
       grid: { cols: 6, rows: 4, cell: 26, cells: (car.cells || []).map((id) => (id ? this.makeModule(id) : null)) },
+      interior: new Array(6).fill(null).map((_, i) => {
+        const id = car.interior && car.interior[i];
+        const it = id ? INTERIOR_BY_ID[id] : null;
+        return it ? { id: it.id, kind: it.id, name: it.name, icon: it.icon, stat: it.stat } : null;
+      }),
       raft: !!car.raft, engine: !!car.engine,
     };
+    this.player = { x: 0, y: 0, face: 0, onFoot: false, walkPhase: 0, moving: false, hp: 100, maxHp: 100 };
     while (this.car.grid.cells.length < 24) this.car.grid.cells.push(null);
     this.buffs = { dmg: 0, armor: 0, armorAmt: 0, magnet: 0, smoke: 0 };
     this._houseMarks = { a: false, b: false, c: false };
@@ -275,6 +291,9 @@ export const G = {
     car.steerFront = 0;
     this.camera.x = car.x;
     this.camera.y = car.y;
+    this.player = { ...this.player, x: car.x - 60, y: car.y, onFoot: false, walkPhase: 0, moving: false };
+    this.camYaw = car.angle;
+    Camera3D.reset(this);
     this.zoneTime = 0;
     this.spawnTimer = 4;
     this.bullets = [];
@@ -386,6 +405,19 @@ export const G = {
       st.lootBonus += s.lootBonus || 0;
       st.craftDiscount += s.craftDiscount || 0;
     }
+    for (const m of car.interior || []) {
+      if (!m) continue;
+      const s = m.stat || {};
+      st.cap += s.cap || 0;
+      st.crewCap += s.crew || 0;
+      st.solar += s.solar || 0;
+      st.powerMax += s.powerMax || 0;
+      st.repair += s.repair || 0;
+      st.armor += s.armor || 0;
+      st.radar = Math.max(st.radar, s.radar || 0);
+      st.craftDiscount += s.craftDiscount || 0;
+      st.houseScore += (s.comfort || 0) * 3;
+    }
     const up = this.carUpg;
     st.maxSpeed += up.maxSpeed || 0;
     st.accel += up.accel || 0;
@@ -467,6 +499,10 @@ export const G = {
         return;
       }
       // panel shortcuts always work, even with a panel open
+      if (k === 'tab' && this.buildMode) {
+        this.setBuildTarget(this.buildTarget === 'roof' ? 'interior' : 'roof');
+        return;
+      }
       if (k === 'b') { this.toggleBuild(); return; }
       if (k === 'c') { this.togglePanel('craft'); return; }
       if (k === 'n') { this.togglePanel('crew'); return; }
@@ -480,6 +516,7 @@ export const G = {
       this.keys[mapped] = true;
       if (k === 'e') { this.interactNow(); return; }
       if (k === 't') { this.travel(); return; }
+      if (k === 'g') { this.toggleFoot(); return; }
     });
     window.addEventListener('keyup', (e) => {
       const k = e.key.toLowerCase();
@@ -497,6 +534,17 @@ export const G = {
       if (this.screen !== 'playing' || UI.panelOpen()) return;
       if (e.button === 0) {
         if (this.buildMode) {
+          if (this.buildTarget === 'interior') {
+            const slot = this.slotAtScreen(this.mouse.x, this.mouse.y);
+            if (slot < 0) {
+              const now = performance.now();
+              if (!this._missAt || now - this._missAt > 900) {
+                this._missAt = now;
+                UI.toast('Click a mount point inside the cabin (Tab switches back to the roof).', 'warn');
+              }
+            } else this.installInterior(slot);
+            return;
+          }
           const idx = this.cellAtScreen(this.mouse.x, this.mouse.y);
           if (idx < 0) {
             const now = performance.now();
@@ -507,8 +555,11 @@ export const G = {
           } else this.placeAtCell(idx);
         } else this.mouse.down = true;
       } else if (e.button === 2 && this.buildMode) {
-        const idx = this.cellAtScreen(this.mouse.x, this.mouse.y);
-        this.removeCell(idx);
+        if (this.buildTarget === 'interior') {
+          this.removeInterior(this.slotAtScreen(this.mouse.x, this.mouse.y));
+        } else {
+          this.removeCell(this.cellAtScreen(this.mouse.x, this.mouse.y));
+        }
       }
     });
     canvas.addEventListener('mouseup', (e) => { if (e.button === 0) this.mouse.down = false; });
@@ -523,12 +574,15 @@ export const G = {
     this.buildMode = !this.buildMode;
     if (this.buildMode) {
       this.mouse.down = false;
+      if (this.player.onFoot) { this.player.onFoot = false; this.player.moving = false; }
+      Camera3D.ready = false;
       const owned = Object.entries(this.buildInv).filter(([, n]) => n > 0);
       if (!this.buildSelected || !(this.buildInv[this.buildSelected] > 0)) {
         this.buildSelected = owned.length ? owned[0][0] : null;
       }
     }
     UI.setBuildMode(this.buildMode);
+    UI.setBuildTarget(this.buildTarget);
     UI.renderBuildTray(this);
     U.Sfx.click();
   },
@@ -536,6 +590,7 @@ export const G = {
   exitBuild() {
     const was = this.buildMode;
     this.buildMode = false;
+    this.buildTarget = 'roof';
     UI.setBuildMode(false);
     if (this.screen === 'playing') UI.showHUD(true);
     else UI.showHUD(false);
@@ -543,19 +598,117 @@ export const G = {
   },
 
   cellAtScreen(sx, sy) {
-    const car = this.car;
-    const z = this.camera.zoom;
-    const wx = (sx - this.view.w / 2) / z + this.camera.x;
-    const wy = (sy - this.view.h / 2) / z + this.camera.y;
-    const dx = wx - car.x, dy = wy - car.y;
-    const c = Math.cos(car.angle), s = Math.sin(car.angle);
-    const lx = dx * c + dy * s;
-    const ly = -dx * s + dy * c;
-    const { cols, rows, cell } = car.grid;
-    if (Math.abs(lx) > (cols * cell) / 2 || Math.abs(ly) > (rows * cell) / 2) return -1;
-    const col = U.clamp(Math.floor((lx + (cols * cell) / 2) / cell), 0, cols - 1);
-    const row = U.clamp(Math.floor((ly + (rows * cell) / 2) / cell), 0, rows - 1);
-    return row * cols + col;
+    return Camera3D.screenToCell(this, sx, sy);
+  },
+
+  slotAtScreen(sx, sy) {
+    return Camera3D.screenToInterior(this, sx, sy);
+  },
+
+  setBuildTarget(target) {
+    this.buildTarget = target === 'interior' ? 'interior' : 'roof';
+    if (this.buildTarget === 'interior' && !this.interiorSelected) {
+      this.interiorSelected = INTERIOR_ITEMS[0].id;
+    }
+    Camera3D.ready = false;
+    UI.setBuildTarget(this.buildTarget);
+    UI.renderBuildTray(this);
+    U.Sfx.click();
+  },
+
+  selectInterior(id) {
+    this.interiorSelected = id;
+    UI.renderBuildTray(this);
+  },
+
+  interiorCost(item) {
+    const d = this.stats ? this.stats.craftDiscount : 0;
+    const out = {};
+    for (const [k, v] of Object.entries(item.cost)) out[k] = Math.max(1, Math.ceil(v * (1 - d)));
+    return out;
+  },
+
+  installInterior(slot) {
+    if (slot < 0) { UI.toast('Click a mount point inside the cabin.', 'warn'); return; }
+    const item = INTERIOR_BY_ID[this.interiorSelected];
+    if (!item) { UI.toast('Pick a piece of furniture from the tray.', 'warn'); return; }
+    if (this.car.interior[slot]) { UI.toast('That mount point is taken. Right-click to remove it.', 'warn'); return; }
+    const cost = this.interiorCost(item);
+    if (!this.canAfford(cost)) {
+      UI.toast(`Need ${Object.entries(cost).map(([k, v]) => `${RES[k].icon}${v}`).join(' ')} to build the ${item.name}.`, 'bad');
+      U.Sfx.error();
+      return;
+    }
+    this.payCost(cost);
+    this.car.interior[slot] = { id: item.id, kind: item.id, name: item.name, icon: item.icon, stat: item.stat };
+    this.recompute();
+    UI.renderBuildTray(this);
+    UI.refresh();
+    U.Sfx.craft();
+    UI.toast(`${item.icon} <b>${item.name}</b> bolted into the cabin.`, 'good');
+  },
+
+  removeInterior(slot) {
+    if (slot < 0) return;
+    const m = this.car.interior[slot];
+    if (!m) return;
+    this.car.interior[slot] = null;
+    const item = INTERIOR_BY_ID[m.id];
+    if (item) {
+      const cost = this.interiorCost(item);
+      for (const [k, v] of Object.entries(cost)) this.addRes(k, Math.floor(v * 0.5));
+    }
+    this.recompute();
+    UI.renderBuildTray(this);
+    UI.refresh();
+    U.Sfx.click();
+    UI.toast(`${m.icon} ${m.name} removed (half the parts recovered).`, '');
+  },
+
+  // ---------------------------------------------------------------- on foot
+  actor() {
+    return this.player && this.player.onFoot ? this.player : this.car;
+  },
+
+  toggleFoot() {
+    if (this.screen !== 'playing' || !this.car) return;
+    if (this.buildMode) this.exitBuild();
+    if (UI.panelOpen()) UI.closePanel();
+    const p = this.player;
+    if (p.onFoot) {
+      const d = U.dist(p.x, p.y, this.car.x, this.car.y);
+      if (d > 170) { UI.toast('Walk back to the car to get in.', 'warn'); return; }
+      p.onFoot = false;
+      p.moving = false;
+      Camera3D.ready = false;
+      UI.toast('Back behind the wheel.', '');
+      U.Sfx.click();
+    } else {
+      if (Math.abs(this.car.speed) > 40) { UI.toast('Slow down before stepping out.', 'warn'); return; }
+      const a = this.car.angle + Math.PI / 2;
+      p.x = this.car.x + Math.cos(a) * 130;
+      p.y = this.car.y + Math.sin(a) * 130;
+      p.x = U.clamp(p.x, 30, this.zone.w - 30);
+      p.y = U.clamp(p.y, 30, this.zone.h - 30);
+      p.onFoot = true;
+      p.face = this.camYaw = a;
+      Camera3D.ready = false;
+      UI.toast('On foot — <b>WASD</b> to walk, <b>click</b> to shoot, <b>G</b> to get back in.', '');
+      U.Sfx.click();
+    }
+    UI.refresh();
+  },
+
+  knockOut() {
+    const p = this.player;
+    p.onFoot = false;
+    p.hp = p.maxHp * 0.6;
+    p.moving = false;
+    this.car.hull = Math.max(1, this.car.hull - this.car.hullMax * 0.08);
+    this.shake = 16;
+    Camera3D.ready = false;
+    UI.toast('You were dragged back into the car. Hull damaged.', 'bad');
+    U.Sfx.boom();
   },
 
   placeAtCell(idx) {
@@ -796,12 +949,13 @@ export const G = {
 
   nearDock() {
     if (!this.zone || !this.zone.dock) return false;
-    return U.dist(this.car.x, this.car.y, this.zone.dock.x, this.zone.dock.y) < this.zone.dock.r;
+    const a = this.actor();
+    return U.dist(a.x, a.y, this.zone.dock.x, this.zone.dock.y) < this.zone.dock.r;
   },
 
   // ---------------------------------------------------------------- interact
   findInteract() {
-    const car = this.car;
+    const car = this.actor();
     let best = null, bestD = Infinity;
     let crateBest = null, crateD = Infinity;
     for (const ruin of this.zone.ruins) {
@@ -832,6 +986,11 @@ export const G = {
 
   promptText() {
     const it = this.interact;
+    if (this.player && this.player.onFoot) {
+      const back = U.dist(this.player.x, this.player.y, this.car.x, this.car.y) < 170;
+      if (!it) return `<kbd>WASD</kbd> walk · <kbd>Click</kbd> shoot${back ? ' · <kbd>G</kbd> get back in' : ' · walk back to the car'}`;
+      return `<kbd>E</kbd> interact · <kbd>G</kbd> ${back ? 'get back in' : 'too far from the car'}`;
+    }
     if (!it) return '';
     if (it.type === 'crate') {
       const n = it.ruin.crates.filter((c) => !c.looted).length;
@@ -1050,7 +1209,8 @@ export const G = {
     const spread = smoke ? 0.5 : 0.08;
     const shots = def.boss ? 3 : 1;
     for (let i = 0; i < shots; i++) {
-      const a = U.angTo(e.x, e.y, this.car.x, this.car.y) + U.rand(-spread, spread) + (i - (shots - 1) / 2) * 0.08;
+      const tgt = this.actor();
+      const a = U.angTo(e.x, e.y, tgt.x, tgt.y) + U.rand(-spread, spread) + (i - (shots - 1) / 2) * 0.08;
       const speed = e.def.boss ? 520 : 470;
       this.bullets.push({
         x: e.x + Math.cos(a) * (def.r + 4), y: e.y + Math.sin(a) * (def.r + 4),
@@ -1069,14 +1229,14 @@ export const G = {
     const useAmmo = ammoLeft > 0;
     if (useAmmo) this.res.ammo = ammoLeft - 1;
     const dmgMult = (useAmmo ? 1 : 0.45) * this.stats.weaponDmgMult * (this.buffs.dmg > 0 ? 1.3 : 1);
-    const car = this.car;
+    const src = this.actor();
     const a0 = this.aimAngle;
-    const muzzle = car.w * 0.36;
+    const muzzle = this.player.onFoot ? 26 : this.car.w * 0.36;
     const pellets = st.pellets || 1;
     for (let p = 0; p < pellets; p++) {
       const a = a0 + U.rand(-st.spread, st.spread);
       this.bullets.push({
-        x: car.x + Math.cos(a) * muzzle, y: car.y + Math.sin(a) * muzzle,
+        x: src.x + Math.cos(a) * muzzle, y: src.y + Math.sin(a) * muzzle,
         vx: Math.cos(a) * st.speed, vy: Math.sin(a) * st.speed,
         dmg: st.dmg * dmgMult, friendly: true, turret: false,
         life: st.range / st.speed || 1.2, splash: st.splash || 0, chain: !!st.chain,
@@ -1295,6 +1455,19 @@ export const G = {
           }
           continue;
         }
+        if (this.player.onFoot && U.dist(b.x, b.y, this.player.x, this.player.y) < 24) {
+          b.dead = true;
+          this.player.hp -= b.dmg * 0.55;
+          this.shake = Math.min(12, this.shake + 2);
+          for (let i = 0; i < 4; i++) {
+            this.particles.push({
+              x: b.x, y: b.y, vx: U.rand(-70, 70), vy: U.rand(-70, 70),
+              life: 0.3, maxlife: 0.3, color: '#fca5a5', size: 2,
+            });
+          }
+          if (this.player.hp <= 0) this.knockOut();
+          continue;
+        }
         if (U.circleInBox(b.x, b.y, b.r, car.x, car.y, car.angle, car.w / 2, car.h / 2)) {
           b.dead = true;
           this.damageCar(b.dmg, b.x, b.y);
@@ -1361,16 +1534,29 @@ export const G = {
     this.playtime += dt;
     this.zoneTime += dt;
     const car = this.car;
+    const onWater = this.zone.def.isSea;
 
-    // aim
-    const wx = (this.mouse.x - this.view.w / 2) / this.camera.zoom + this.camera.x;
-    const wy = (this.mouse.y - this.view.h / 2) / this.camera.zoom + this.camera.y;
-    this.aimAngle = U.angTo(car.x, car.y, wx, wy);
+    // aim: cast the mouse ray onto the ground
+    const src = this.actor();
+    const hitPlane = Camera3D.screenToPlane(this.mouse.x, this.mouse.y, this.view, 0);
+    if (hitPlane) {
+      let ax = hitPlane.x, ay = hitPlane.y;
+      const dd = U.dist(src.x, src.y, ax, ay);
+      if (dd > 1500) {
+        ax = src.x + (ax - src.x) / dd * 1500;
+        ay = src.y + (ay - src.y) / dd * 1500;
+      }
+      this.aimPoint.x = ax;
+      this.aimPoint.y = ay;
+      this.aimAngle = U.angTo(src.x, src.y, ax, ay);
+    }
 
+    if (this.player.onFoot) {
+      this.updateOnFoot(dt);
+    } else {
     // driving
     const throttle = (this.keys.w ? 1 : 0) - (this.keys.s ? 1 : 0);
     const steer = (this.keys.d ? 1 : 0) - (this.keys.a ? 1 : 0);
-    const onWater = this.zone.def.isSea;
     let maxSpeed = this.stats.maxSpeed * (onWater ? 0.82 : 1);
     if (onWater && this.car.raft) maxSpeed *= this.car.engine ? 1.0 : 0.62;
     if (this.buffs.speed > 0) maxSpeed *= 1.25;
@@ -1393,6 +1579,7 @@ export const G = {
     this.run.distance += Math.abs(car.speed) * dt * 0.02;
     car.x = U.clamp(nx, 40, this.zone.w - 40);
     car.y = U.clamp(ny, 40, this.zone.h - 40);
+    }
 
     // sinking if in water without a raft
     if (onWater && !car.raft) {
@@ -1471,6 +1658,33 @@ export const G = {
 
     // car module hit flashes
     for (const m of car.grid.cells) if (m && m.hitFlash > 0) m.hitFlash = Math.max(0, m.hitFlash - dt * 3);
+  },
+
+  updateOnFoot(dt) {
+    const p = this.player;
+    const car = this.car;
+    car.speed *= 1 - Math.min(1, 3.4 * dt);
+    if (Math.abs(car.speed) < 4) car.speed = 0;
+    const fwd = (this.keys.w ? 1 : 0) - (this.keys.s ? 1 : 0);
+    const side = (this.keys.d ? 1 : 0) - (this.keys.a ? 1 : 0);
+    const speed = 215 * (this.buffs.speed > 0 ? 1.25 : 1);
+    if (fwd || side) {
+      const c = this.camYaw;
+      let mx = Math.cos(c) * fwd + Math.cos(c + Math.PI / 2) * side;
+      let my = Math.sin(c) * fwd + Math.sin(c + Math.PI / 2) * side;
+      const l = Math.hypot(mx, my) || 1;
+      mx /= l; my /= l;
+      p.x = U.clamp(p.x + mx * speed * dt, 30, this.zone.w - 30);
+      p.y = U.clamp(p.y + my * speed * dt, 30, this.zone.h - 30);
+      p.moving = true;
+      p.walkPhase += dt * 10;
+      this.camYaw = U.angLerp(this.camYaw, Math.atan2(my, mx), Math.min(1, 2.4 * dt));
+    } else {
+      p.moving = false;
+      p.walkPhase += dt * 1.6;
+    }
+    p.face = this.aimAngle;
+    p.hp = Math.min(p.maxHp, p.hp + 2 * dt);
   },
 
   updateEnemies(dt) {
@@ -1577,19 +1791,8 @@ export const G = {
   },
 
   updateCamera(dt) {
-    const car = this.car;
-    const cam = this.camera;
-    if (dt > 0) {
-      const f = 1 - Math.exp(-7 * dt);
-      cam.x += (car.x - cam.x) * f;
-      cam.y += (car.y - cam.y) * f;
-    }
-    const halfW = this.view.w / 2 / cam.zoom;
-    const halfH = this.view.h / 2 / cam.zoom;
-    if (this.zone.w > halfW * 2) cam.x = U.clamp(cam.x, halfW, this.zone.w - halfW);
-    else cam.x = this.zone.w / 2;
-    if (this.zone.h > halfH * 2) cam.y = U.clamp(cam.y, halfH, this.zone.h - halfH);
-    else cam.y = this.zone.h / 2;
+    if (!this.zone) return;
+    Camera3D.update(this, dt);
   },
 
   // ---------------------------------------------------------------- end states

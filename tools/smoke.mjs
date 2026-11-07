@@ -336,6 +336,55 @@ G.damageCar(999);
 assert(G.screen === 'dead', 'hull zero ends the run');
 assert(!document.getElementById('endScreen').classList.contains('hidden'), 'death overlay shown');
 
+// ---------------------------------------------------------------- 3D / rig / interior
+console.log('— 3D camera, character rig, interior');
+G.newGame();
+const { Camera3D } = await import('../js/camera3d.js');
+step(10);
+const screenCar = Camera3D.worldToScreen(G, G.car.x * 0.05, 2, G.car.y * 0.05);
+assert(!!screenCar && screenCar.depth > 0, '3D camera projects the car to screen space');
+assert(Camera3D.focal > 100 && Camera3D.pitch > 0.1, 'perspective camera is pitched down at the car');
+const cellPick = G.cellAtScreen(G.view.w / 2, G.view.h / 2);
+assert(cellPick >= 0 && cellPick < 24, 'mouse ray picks a roof cell (' + cellPick + ')');
+G.toggleBuild();
+G.setBuildTarget('interior');
+assert(G.buildTarget === 'interior', 'build target switches to the interior');
+const capBefore = G.stats.cap;
+G.interiorSelected = 'shelf';
+G.installInterior(0);
+assert(G.car.interior[0] && G.car.interior[0].id === 'shelf', 'furniture installed inside the cabin');
+assert(G.stats.cap > capBefore, 'interior storage raises the material cap');
+step(40);
+const slotPick = G.slotAtScreen(G.view.w / 2, G.view.h / 2);
+assert(slotPick >= 0, 'interior camera frames the cabin');
+assert(slotPick >= -1 && slotPick < 6, 'interior mount points are pickable (' + slotPick + ')');
+G.save();
+G.loadGame();
+assert(G.car.interior[0] && G.car.interior[0].id === 'shelf' && G.car.interior[0].stat, 'interior furniture survives save/load');
+G.removeInterior(0);
+assert(!G.car.interior[0], 'furniture removed from the cabin');
+G.exitBuild();
+
+// on foot: the rig leaves the car, walks, shoots and climbs back in
+G.toggleFoot();
+assert(G.player.onFoot, 'player steps out of the car');
+const px0 = G.player.x, py0 = G.player.y;
+G.keys.w = true;
+step(30);
+G.keys.w = false;
+assert(Math.hypot(G.player.x - px0, G.player.y - py0) > 20, 'player rig walks around on foot');
+G.mouse.down = true;
+step(6);
+G.mouse.down = false;
+assert(G.bullets.length > 0, 'player fires on foot');
+G.player.x = G.car.x + 40; G.player.y = G.car.y + 40;
+G.toggleFoot();
+assert(!G.player.onFoot, 'player climbs back into the car');
+let rigErr = null;
+try { G.player.onFoot = true; G.player.x = G.car.x + 90; step(4); } catch (e) { rigErr = e.message; }
+assert(!rigErr, 'rigged character renders in 3D');
+G.player.onFoot = false;
+
 console.log('\n--- errors (' + errors.length + ') ---');
 errors.slice(0, 20).forEach((e) => console.log(e));
 process.exit(errors.length ? 1 : 0);

@@ -3,13 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Home on Wheels — build a house on your car, loot the ruins, craft 1000+ items, cross the ocean and survive the army.",
+  "description": "Home on Wheels \u2014 a 3D car-house survival game: build a home on your car, loot ruins, craft 1000+ items, cross the ocean and survive the army.",
   "scripts": {
     "start": "python3 -m http.server 8000 --bind 0.0.0.0",
     "serve": "python3 -m http.server 8000 --bind 0.0.0.0",
-    "check": "node --check js/util.js && node --check js/data.js && node --check js/recipes.js && node --check js/world.js && node --check js/render.js && node --check js/ui.js && node --check js/game.js && node --check js/main.js",
+    "check": "node --check js/util.js && node --check js/data.js && node --check js/recipes.js && node --check js/world.js && node --check js/geo3d.js && node --check js/camera3d.js && node --check js/render.js && node --check js/ui.js && node --check js/game.js && node --check js/main.js",
     "test": "node tools/smoke.mjs",
-    "shots": "node tools/shot.mjs"
+    "shots": "node tools/shot.mjs",
+    "smoke": "node tools/smoke.mjs"
   },
   "devDependencies": {
     "@napi-rs/canvas": "^1.1.0",

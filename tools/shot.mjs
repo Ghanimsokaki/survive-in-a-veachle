@@ -109,4 +109,39 @@ G.finale.timer = 0;
 for (let i = 0; i < 200; i++) G.frame(1 / 60);
 shot('05-finale');
 
+// --- 6. on foot next to the car house
+G.enterZone(0);
+G.buildInv = {};
+const bpool = RECIPES.filter((r) => r.cat === 'build');
+let ci = 0;
+for (const kind of ['floor', 'floor', 'storage', 'bed', 'solar', 'wall', 'garden', 'antenna']) {
+  const pick = bpool.find((r) => r.out.spec.kind === kind);
+  if (!pick) continue;
+  G.buildInv[pick.id] = 1;
+  G.buildSelected = pick.id;
+  G.placeAtCell(ci);
+  ci += 1;
+}
+G.car.interior = new Array(6).fill(null).map((_, i) => {
+  const it = ['cot', 'stove', 'shelf', 'tank', 'plant', 'radio'][i];
+  return { id: it, kind: it, name: it, icon: '', stat: {} };
+});
+G.recompute();
+for (let i = 0; i < 40; i++) G.frame(1 / 60);
+G.player.x = G.car.x + 130;
+G.player.y = G.car.y + 80;
+G.player.onFoot = true;
+G.camYaw = G.player.face = Math.PI * 0.35;
+G.mouse.x = 980; G.mouse.y = 520;
+for (let i = 0; i < 70; i++) G.frame(1 / 60);
+shot('06-on-foot');
+
+// --- 7. interior build mode (x-ray view into the cabin)
+G.player.onFoot = false;
+G.toggleBuild();
+G.setBuildTarget('interior');
+G.interiorSelected = 'fridge';
+for (let i = 0; i < 90; i++) G.frame(1 / 60);
+shot('07-interior');
+
 console.log('done');

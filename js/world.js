@@ -172,11 +172,16 @@ export function genZone(index) {
   }
 
   // Decoration
-  const decorCount = Math.round((def.w * def.h) / (def.isSea ? 62000 : 42000));
+  const decorCount = Math.round((def.w * def.h) / (def.isSea ? 80000 : 58000));
   for (let i = 0; i < decorCount; i++) {
     const x = randInt(0, def.w);
     const y = randInt(0, def.h);
     if (z.ruins.some((r) => x > r.x - 20 && x < r.x + r.w + 20 && y > r.y - 20 && y < r.y + r.h + 20)) continue;
+    // keep the spawn, the gate and the dock clear so nothing grows through the car
+    if (z.start && Math.hypot(x - z.start.x, y - z.start.y) < 230) continue;
+    if (z.exit && Math.hypot(x - z.exit.x, y - z.exit.y) < 190) continue;
+    if (z.dock && Math.hypot(x - z.dock.x, y - z.dock.y) < 240) continue;
+    if (Math.abs(y - def.h / 2) < 110) continue; // main road
     let type;
     if (def.isSea) type = pick(['debris', 'debris', 'buoy', 'buoy', 'rock']);
     else if (def.biome === 'java' || def.biome === 'coast') type = pick(['palm', 'palm', 'tree', 'rock', 'bush', 'bush', 'wreck']);

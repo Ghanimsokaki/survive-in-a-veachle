@@ -134,3 +134,22 @@ export const BIOMES = {
   coast:    { ground: '#4a4a3a', gravel: '#5a5945', road: '#67665a', accent: '#c9b079' },
   dc:       { ground: '#33383a', gravel: '#454c4e', road: '#585f61', accent: '#94a3a8' },
 };
+
+// --------------------------------------------- car interior furniture
+// Six mount points inside the cabin. These are installed straight from the
+// interior build tray (cost is paid in resources, no recipe needed).
+export const INTERIOR_ITEMS = [
+  { id: 'cot',    name: 'Folding Cot',    icon: '🛏️', cost: { scrap: 25, cloth: 14 },       stat: { comfort: 3, crew: 1 },        desc: 'A bunk that folds into the wall. One extra berth.' },
+  { id: 'stove',  name: 'Camp Stove',     icon: '🔥', cost: { scrap: 30, fuel: 10 },         stat: { comfort: 2, solar: 0.2 },     desc: 'Hot food on the road. +2 comfort.' },
+  { id: 'shelf',  name: 'Pantry Shelf',   icon: '📦', cost: { wood: 40, scrap: 10 },         stat: { cap: 250 },                   desc: 'Extra storage bolted to the cabin wall.' },
+  { id: 'tank',   name: 'Water Tank',     icon: '💧', cost: { scrap: 35, rubber: 15 },        stat: { comfort: 2, repair: 0.4 },    desc: 'Wash, drink, patch. Slow hull repair.' },
+  { id: 'fridge', name: 'Fridge',         icon: '🧊', cost: { alloy: 10, electronics: 6 },   stat: { cap: 400, comfort: 1 },       desc: 'Cold storage. +400 material cap.' },
+  { id: 'lamp',   name: 'Cabin Lamp',     icon: '💡', cost: { wire: 8, glass: 6 },           stat: { comfort: 1, solar: 0.6 },     desc: 'A warm light and a little solar trickle.' },
+  { id: 'radio',  name: 'Shortwave Radio',icon: '📻', cost: { electronics: 10, wire: 10 },   stat: { comfort: 2, radar: 150 },     desc: 'Hear trouble before you see it.' },
+  { id: 'bench',  name: 'Fold-out Bench', icon: '🧰', cost: { scrap: 45, wood: 20 },         stat: { craftDiscount: 0.05 },        desc: 'A tiny bench for tinkering. -5% craft cost.' },
+  { id: 'medkit', name: 'Med Cabinet',    icon: '🩹', cost: { meds: 10, scrap: 10 },         stat: { repair: 1.2 },                desc: 'Bandages within reach. Hull repair.' },
+  { id: 'safe',   name: 'Floor Safe',     icon: '🔐', cost: { alloy: 18, scrap: 30 },        stat: { cap: 500, armor: 10 },        desc: 'Heavy and hidden. +500 cap, +10 armour.' },
+  { id: 'plant',  name: 'Potted Plant',   icon: '🪴', cost: { food: 8, wood: 15 },           stat: { comfort: 4 },                desc: 'Something alive in the car. +4 comfort.' },
+  { id: 'heater', name: 'Cabin Heater',   icon: '♨️', cost: { scrap: 30, wire: 12 },         stat: { comfort: 3, powerMax: 20 },  desc: 'Warm nights, +20 power capacity.' },
+];
+export const INTERIOR_BY_ID = Object.fromEntries(INTERIOR_ITEMS.map((i) => [i.id, i]));
