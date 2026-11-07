@@ -39,6 +39,8 @@ html, body {
 .objective b { color: var(--gold); }
 .siege { margin-top: 7px; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); }
 .siege.hot { color: var(--red); }
+.sector { margin-top: 6px; font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--dim); opacity: 0.72; }
+.sector b { color: #cfe9f5; font-weight: 600; }
 .siege b { color: #fff; }
 
 .hud-tr { position: absolute; top: 16px; right: 18px; text-align: center; }

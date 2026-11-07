@@ -405,19 +405,83 @@ function fortSignature() {
     [...game.fort.cells.values()].map((c) => c.kind).join('');
 }
 
-function buildWorldMeshes() {
-  worldGroup.clear();
-  for (const island of game.world.islands) worldGroup.add(buildIsland(THREE, island));
-  for (const d of game.world.derelicts) {
+// The world is endless, so meshes are built per cell and thrown away when the
+// cell streams out. Only the 3x3 window around the ship is ever alive.
+const worldCells = new Map(); // cell key -> THREE.Group
+let worldCellSig = '';
+
+function buildCellGroup(cell) {
+  const g = new THREE.Group();
+  g.name = 'cell ' + cell.key;
+  for (const island of cell.islands) {
+    const m = buildIsland(THREE, island);
+    m.name = 'island ' + island.id;
+    g.add(m);
+  }
+  for (const d of cell.derelicts) {
     const m = buildDerelict(THREE, d);
     m.userData.derelict = d;
-    worldGroup.add(m);
+    m.name = 'derelict ' + d.id;
+    g.add(m);
   }
-  for (const s of game.world.storms) {
+  for (const s of cell.storms) {
     const m = buildStorm(THREE, s);
     m.userData.storm = s;
-    worldGroup.add(m);
+    m.name = 'storm ' + s.id;
+    g.add(m);
   }
+  return g;
+}
+
+function disposeTree(root) {
+  root.traverse((o) => {
+    if (o.geometry && o.geometry.dispose) o.geometry.dispose();
+    const mat = o.material;
+    if (!mat) return;
+    const list = Array.isArray(mat) ? mat : [mat];
+    for (const m of list) {
+      if (m.map && m.userData && m.userData.keepTexture) continue;
+      if (m.dispose) m.dispose();
+    }
+  });
+}
+
+function syncWorldCells(force = false) {
+  if (!game) return;
+  const stream = game.stream;
+  if (!stream) return;
+  const sig = stream.cx + ',' + stream.cz + ',' + stream.radius;
+  if (!force && sig === worldCellSig) return;
+  worldCellSig = sig;
+
+  const want = new Map();
+  for (const cell of stream.cells) want.set(cell.key, cell);
+
+  for (const [key, g] of worldCells) {
+    if (want.has(key)) continue;
+    worldGroup.remove(g);
+    disposeTree(g);
+    worldCells.delete(key);
+  }
+  let added = 0;
+  for (const [key, cell] of want) {
+    if (worldCells.has(key)) continue;
+    const g = buildCellGroup(cell);
+    worldGroup.add(g);
+    worldCells.set(key, g);
+    added++;
+  }
+  return added;
+}
+
+function buildWorldMeshes() {
+  for (const [key, g] of worldCells) {
+    worldGroup.remove(g);
+    disposeTree(g);
+    worldCells.delete(key);
+  }
+  worldCellSig = '';
+  syncWorldCells(true);
 }
 
 // ------------------------------------------------------------------ game boot
@@ -849,6 +913,15 @@ function syncShip(dt) {
     for (const m of nac.coils) m.material.opacity = 0.75 + Math.sin(game.t * 5 + m.position.z) * 0.2;
   }
   for (const b of parts.banks) b.visible = game.fireCd < 1 / game.ship.stats.fireRate * 0.55;
+  // warp grilles breathe with the throttle, running lights blink on their own cycle
+  const throttle = Math.min(1, Math.abs(game.speed) / Math.max(1, game.ship.stats.maxSpeed));
+  for (const grille of parts.grilles || []) grille.material.opacity = 0.5 + throttle * 0.3 + Math.sin(game.t * 4) * 0.12;
+  for (const ex of parts.exhaust || []) ex.material.opacity = 0.55 + throttle * 0.4;
+  for (const port of parts.impulse || []) port.visible = Math.sin(game.t * 7 + port.position.x * 3) > -0.55;
+  for (const light of parts.runningLights || []) {
+    const t2 = (game.t / light.period + light.phase) % 1;
+    light.mesh.visible = t2 < 0.5;
+  }
   if (parts.shieldBubble) {
     parts.shieldBubble.visible = game.shields > 0.5;
     parts.shieldBubble.rotation.y = game.t * 0.3;
@@ -999,6 +1072,7 @@ function syncFort(dt) {
 
 function syncWorld(dt) {
   homeBeacon.rotation.y += dt * 0.2;
+  syncWorldCells();
   for (const obj of worldGroup.children) {
     const d = obj.userData.derelict;
     if (d) {
@@ -1011,6 +1085,12 @@ function syncWorld(dt) {
       obj.userData.ringA.rotation.z += dt * 0.6;
       obj.userData.ringB.rotation.x += dt * 0.4;
       obj.userData.points.material.opacity = 0.45 + Math.sin(game.t * 1.6 + s.phase) * 0.2;
+      if (obj.userData.inner) {
+        obj.userData.inner.rotation.y -= dt * 0.5;
+        obj.userData.inner.material.opacity = 0.4 + Math.sin(game.t * 2.3 + s.phase) * 0.18;
+      }
+      if (obj.userData.core) obj.userData.core.scale.setScalar(0.85 + Math.sin(game.t * 2 + s.phase) * 0.15);
+      if (obj.userData.bolts) obj.userData.bolts.material.opacity = Math.sin(game.t * 9 + s.phase) > 0.55 ? 0.7 : 0.1;
     }
     const beacon = obj.userData.beacon;
     if (beacon) beacon.material.color.setHex(Math.sin(game.t * 4) > 0 ? 0x7ef0ff : 0x2d6f8a);
@@ -1084,6 +1164,8 @@ window.__skyuss = {
   start: (resume) => startGame(resume),
   rebuildShip: () => rebuildShipMesh(),
   rebuildFort: () => rebuildFort(),
+  get worldCells() { return worldCells; },
+  get worldGroup() { return worldGroup; },
   touch,
   audio,
 };

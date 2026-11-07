@@ -125,8 +125,11 @@ const NACELLE_GLOW = ['#57c7ff', '#57c7ff', '#7c5bff', '#ff4d6d', '#7cf0ff'];
 const NACELLE_CORE = ['#dff3ff', '#dff3ff', '#e6dcff', '#ffe1e6', '#e8ffff'];
 
 function standard(THREE, color, opts = {}) {
+  // NOTE: the scene has no environment map, so high metalness would render the
+  // hull almost black (PBR metal has nothing to reflect). Keep it low and let
+  // the hemisphere + sun lights do the work.
   return new THREE.MeshStandardMaterial({
-    color, roughness: opts.roughness ?? 0.45, metalness: opts.metalness ?? 0.65,
+    color, roughness: opts.roughness ?? 0.52, metalness: opts.metalness ?? 0.28,
     emissive: opts.emissive ?? '#000000', emissiveIntensity: opts.emissiveIntensity ?? 1,
     flatShading: !!opts.flat,
   });
@@ -159,133 +162,330 @@ export function buildEnterprise(THREE, ship) {
   root.add(body);
   const parts = {
     nacelles: [], banks: [], dish: null, torpedo: null, shieldBubble: null, lights: [],
+    impulse: [], grilles: [], exhaust: [], runningLights: [], shuttlebay: null,
   };
   root.userData.parts = parts;
 
-  const hullMat = standard(THREE, hullColor, { roughness: 0.38, metalness: 0.7 });
-  const darkMat = standard(THREE, '#3c4652', { roughness: 0.55, metalness: 0.6 });
-  const accentMat = standard(THREE, accent, { roughness: 0.35, metalness: 0.8, emissive: accent, emissiveIntensity: 0.12 });
-
+  const hullMat = standard(THREE, hullColor, { roughness: 0.46, metalness: 0.3 });
+  const panelMat = standard(THREE, HULL_TONES[Math.min(HULL_TONES.length - 1, t.saucer + 1)], { roughness: 0.58, metalness: 0.24 });
+  const darkMat = standard(THREE, '#4a5666', { roughness: 0.62, metalness: 0.3 });
+  const accentMat = standard(THREE, accent, { roughness: 0.34, metalness: 0.4, emissive: accent, emissiveIntensity: 0.22 });
+  const windowMat = glow(THREE, '#ffe3a8', 0.95);
   const add = (mesh, parent = body) => { parent.add(mesh); return mesh; };
 
+  // ------------------------------------------------------------ proportions
+  const R = 7.6 * st.saucerScale;          // saucer radius
+  const SCH = -5.4;                        // saucer centre, forward of the origin
+  const SY = 1.32;                         // saucer mid-plane height
+  const HR = 2.05;                         // engineering hull radius
+  const HY = -3.6;                         // engineering hull centre height
+  const HL = 10.8 + t.saucer * 0.7;        // engineering hull length
+  const HZ = 5.6;                          // engineering hull centre, aft
+  const NY = HY + 4.7 + t.nacelles * 0.08; // nacelle centre height
+  const NX = R * 0.98 + 2.35;              // nacelle centre, outboard
+  const NZ = HZ + 3.6;                     // nacelle centre, aft
+  const NL = 9.2 * st.nacelleScale;        // nacelle length
+  const NR = 0.9 * st.nacelleScale;        // nacelle radius
+
   // ---------------------------------------------------------------- saucer
+  // A lathed profile gives the class its real silhouette: a domed B-deck
+  // plateau, a sharp rim and an undercut lower hull — not a flat disc.
   const saucer = new THREE.Group();
   saucer.name = 'saucer';
-  const sr = 7.4 * st.saucerScale;
-  const saucerBody = add(new THREE.Mesh(new THREE.CylinderGeometry(sr, sr * 0.92, 1.5, 48, 1), hullMat), saucer);
-  saucerBody.position.y = 1.1;
-  const rim = add(new THREE.Mesh(new THREE.TorusGeometry(sr * 0.99, 0.34, 10, 56), accentMat), saucer);
-  rim.rotation.x = Math.PI / 2;
-  rim.position.y = 1.1;
-  const upper = add(new THREE.Mesh(new THREE.CylinderGeometry(sr * 0.55, sr * 0.95, 1.1, 40, 1), hullMat), saucer);
-  upper.position.y = 2.3;
-  const bridge = add(new THREE.Mesh(new THREE.SphereGeometry(sr * 0.24, 20, 14, 0, Math.PI * 2, 0, Math.PI / 2), hullMat), saucer);
-  bridge.position.y = 2.95;
-  // an extra command tier appears with every saucer refit
-  for (let i = 0; i < t.saucer; i++) {
-    const ring = add(new THREE.Mesh(new THREE.CylinderGeometry(sr * (0.72 - i * 0.07), sr * (0.78 - i * 0.07), 0.5, 32, 1), i % 2 ? darkMat : hullMat), saucer);
-    ring.position.y = 3.15 + i * 0.42;
+  saucer.position.set(0, SY, SCH);
+  const profile = [
+    [0.00, 1.60], [0.22, 1.60], [0.36, 1.57], [0.42, 1.44],
+    [0.56, 1.35], [0.70, 1.18], [0.82, 0.96], [0.92, 0.62],
+    [0.995, 0.40], [1.00, 0.26], [1.00, 0.02], [0.985, -0.06], [0.94, -0.20],
+    [0.84, -0.42], [0.68, -0.66], [0.48, -0.84], [0.24, -0.94], [0.00, -0.98],
+  ].map(([r, y]) => new THREE.Vector2(r * R, y * (R / 7.6)));
+  const saucerHull = new THREE.Mesh(new THREE.LatheGeometry(profile, 96), hullMat);
+  saucer.add(saucerHull);
+
+  // rim band + undercut shadow line
+  const rimBand = new THREE.Mesh(new THREE.CylinderGeometry(R * 1.001, R * 1.001, 0.16 * (R / 7.6), 96, 1, true), accentMat);
+  rimBand.position.y = 0.14 * (R / 7.6);
+  saucer.add(rimBand);
+  const rimLip = new THREE.Mesh(new THREE.TorusGeometry(R * 0.955, 0.075 * (R / 7.6), 8, 72), darkMat);
+  rimLip.rotation.x = Math.PI / 2;
+  rimLip.position.y = -0.06 * (R / 7.6);
+  saucer.add(rimLip);
+
+  // concentric deck seams: cheap detail that reads as hull plating from afar
+  for (const seamR of [0.30, 0.62, 0.78]) {
+    const seam = new THREE.Mesh(new THREE.TorusGeometry(R * seamR, 0.022 * (R / 7.6), 6, 72), darkMat);
+    seam.rotation.x = Math.PI / 2;
+    // follow the lathe profile so the seam lies on the skin
+    let y = 1.6;
+    for (let i = 1; i < profile.length; i++) {
+      const a = profile[i - 1], b = profile[i];
+      if (seamR * R <= b.x || i === profile.length - 1) { y = b.y + 0.015 * (R / 7.6); break; }
+    }
+    seam.position.y = y;
+    saucer.add(seam);
   }
+
+  // B-deck plateau: the raised deck the bridge sits on
+  const plateau = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.44, R * 0.50, 0.30 * (R / 7.6), 56, 1), hullMat);
+  plateau.position.y = 1.66 * (R / 7.6);
+  saucer.add(plateau);
+  const plateauRing = new THREE.Mesh(new THREE.TorusGeometry(R * 0.47, 0.045 * (R / 7.6), 8, 64), accentMat);
+  plateauRing.rotation.x = Math.PI / 2;
+  plateauRing.position.y = 1.79 * (R / 7.6);
+  saucer.add(plateauRing);
+
+  // bridge module + dome + sensor pod
+  const bridge = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.19, R * 0.22, 0.22 * (R / 7.6), 32, 1), hullMat);
+  bridge.position.y = 1.93 * (R / 7.6);
+  saucer.add(bridge);
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(R * 0.185, 28, 16, 0, Math.PI * 2, 0, Math.PI / 2), panelMat);
+  dome.position.y = 2.04 * (R / 7.6);
+  saucer.add(dome);
+  const sensorPod = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.05, R * 0.06, 0.1 * (R / 7.6), 12, 1), darkMat);
+  sensorPod.position.set(0, 2.16 * (R / 7.6), 0);
+  saucer.add(sensorPod);
+
+  // impulse engine block on the aft edge of the saucer
+  const impulseHouse = new THREE.Mesh(new THREE.BoxGeometry(R * 0.52, 0.3 * (R / 7.6), 0.9 * (R / 7.6)), panelMat);
+  impulseHouse.position.set(0, 1.12 * (R / 7.6), R * 0.80);
+  saucer.add(impulseHouse);
+  for (let i = 0; i < 2; i++) {
+    const port = new THREE.Mesh(new THREE.BoxGeometry(R * 0.2, 0.16 * (R / 7.6), 0.1), glow(THREE, '#ff8a4c', 0.92));
+    port.position.set((i ? 1 : -1) * R * 0.13, 1.12 * (R / 7.6), R * 0.80 + 0.46 * (R / 7.6));
+    saucer.add(port);
+    parts.impulse.push(port);
+  }
+
   // phaser bank strips spread around the rim as banks unlock (360° coverage)
   const bankCount = st.banks;
   for (let i = 0; i < bankCount; i++) {
     const a = (i / bankCount) * Math.PI * 2;
-    const strip = add(new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.22, 0.42), glow(THREE, '#8ef2ff')), saucer);
-    strip.position.set(Math.cos(a) * sr * 0.94, 0.55, Math.sin(a) * sr * 0.94);
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.16, 0.34), glow(THREE, '#8ef2ff'));
+    strip.position.set(Math.cos(a) * R * 0.965, 0.34 * (R / 7.6), Math.sin(a) * R * 0.965);
     strip.rotation.y = -a;
+    strip.rotation.z = 0.1;
+    saucer.add(strip);
     parts.banks.push(strip);
+  }
+
+  // lit window rows: two thin solid rings read as hundreds of cabins
+  for (let i = 0; i < 2; i++) {
+    const rowR = R * (0.80 + i * 0.10);
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(rowR, rowR, 0.075 * (R / 7.6), 64, 1, true), windowMat);
+    band.position.y = (0.52 + i * 0.01) * (R / 7.6);
+    saucer.add(band);
+    parts.lights.push(band);
+  }
+  // a handful of individual windows on the plateau face
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2 + 0.3;
+    const w = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.09, 0.06), windowMat);
+    w.position.set(Math.cos(a) * R * 0.52, 1.52 * (R / 7.6), Math.sin(a) * R * 0.52);
+    w.rotation.y = -a;
+    saucer.add(w);
   }
   body.add(saucer);
 
   // ------------------------------------------------------------------ neck
-  const neck = add(new THREE.Mesh(new THREE.BoxGeometry(1.5, 3.4, 3.2), darkMat));
-  neck.position.set(0, -0.9, 1.1);
-  neck.rotation.x = -0.16;
+  // tapered pylon-neck sloping down and aft from the saucer to the hull.
+  // Slim and blade-like: a fat wedge here buries the whole silhouette.
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.95, 3.9, 4, 1), hullMat);
+  neck.rotation.y = Math.PI / 4;
+  neck.rotation.x = -0.5;
+  neck.scale.set(1, 1, 1.55);
+  neck.position.set(0, -0.95, 1.9);
+  neck.name = 'neck';
+  add(neck);
+  // leading edge fairing that runs into the saucer
+  const neckFin = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.9, 2.6), panelMat);
+  neckFin.rotation.x = -0.5;
+  neckFin.position.set(0, -0.35, 0.7);
+  add(neckFin);
+  const neckWindow = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.06, 0.9), windowMat);
+  neckWindow.rotation.x = -0.52;
+  neckWindow.position.set(0, -0.6, 0.9);
+  add(neckWindow);
+  parts.lights.push(neckWindow);
 
-  // ------------------------------------------------- engineering hull + dish
+  // ------------------------------------------------------ engineering hull
   const eng = new THREE.Group();
   eng.name = 'engineering';
-  const hullLen = 9.4 + t.saucer * 0.5;
-  const hullR = 2.35;
-  const hullBody = add(new THREE.Mesh(new THREE.CapsuleGeometry(hullR, hullLen, 12, 24), hullMat), eng);
+  eng.position.set(0, HY, HZ);
+  const hullBody = new THREE.Mesh(new THREE.CapsuleGeometry(HR, HL, 14, 28), hullMat);
   hullBody.rotation.x = Math.PI / 2;
-  hullBody.position.set(0, -2.7, 0.6);
-  const belly = add(new THREE.Mesh(new THREE.CylinderGeometry(hullR * 0.72, hullR * 0.5, 3.2, 20, 1), darkMat), eng);
-  belly.rotation.x = Math.PI / 2;
-  belly.position.set(0, -4.2, -1.4);
+  eng.add(hullBody);
+
+  // dorsal spine and plating bands break up the capsule
+  const spine = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.34, HL * 0.9), panelMat);
+  spine.position.set(0, HR * 0.92, 0);
+  eng.add(spine);
+  for (let i = 0; i < 3; i++) {
+    const bandR = HR * 1.005;
+    const plate = new THREE.Mesh(new THREE.TorusGeometry(bandR, 0.055, 8, 40), darkMat);
+    plate.rotation.x = Math.PI / 2;
+    plate.position.z = -HL * 0.34 + i * (HL * 0.32);
+    eng.add(plate);
+  }
+  // hull window rows
+  for (let i = 0; i < 2; i++) {
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(HR * 1.004, HR * 1.004, 0.07, 40, 1, true), windowMat);
+    band.rotation.x = Math.PI / 2;
+    band.position.z = -HL * 0.05 + i * 0.6;
+    eng.add(band);
+    parts.lights.push(band);
+  }
+
+  // deflector housing at the bow of the hull
+  const housing = new THREE.Mesh(new THREE.CylinderGeometry(HR * 0.95, HR * 1.06, 1.15, 32, 1), panelMat);
+  housing.rotation.x = Math.PI / 2;
+  housing.position.z = -HL / 2 - 0.35;
+  eng.add(housing);
+  const housingRing = new THREE.Mesh(new THREE.TorusGeometry(HR * 0.97, 0.09, 8, 32), darkMat);
+  housingRing.position.z = -HL / 2 - 0.9;
+  eng.add(housingRing);
+
+  // shuttlebay at the stern: recessed bay, two lit doors
+  const bay = new THREE.Group();
+  bay.position.set(0, 0.15, HL / 2 + HR * 0.55);
+  const bayFrame = new THREE.Mesh(new THREE.BoxGeometry(2.1, 1.3, 0.5), panelMat);
+  bay.add(bayFrame);
+  for (let i = 0; i < 2; i++) {
+    const door = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.95, 0.12), glow(THREE, '#ffd66b', 0.85));
+    door.position.set((i ? 1 : -1) * 0.46, 0, 0.3);
+    bay.add(door);
+  }
+  const bayLamp = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.1, 0.1), glow(THREE, '#9df2ff'));
+  bayLamp.position.set(0, 0.7, 0.3);
+  bay.add(bayLamp);
+  eng.add(bay);
+  parts.shuttlebay = bay;
 
   // deflector dish: radius, ring count and colour all change with the tier
   const dishGroup = new THREE.Group();
-  dishGroup.position.set(0, -3.1, -3.1);
-  const dr = 1.15 * st.dishScale;
-  const dishBack = add(new THREE.Mesh(new THREE.CylinderGeometry(dr * 1.08, dr * 1.08, 0.3, 28, 1), darkMat), dishGroup);
+  dishGroup.position.set(0, 0.05, -HL / 2 - 0.95);
+  const dr = 1.08 * st.dishScale;
+  const dishBack = new THREE.Mesh(new THREE.CylinderGeometry(dr * 1.12, dr * 1.12, 0.26, 32, 1), darkMat);
   dishBack.rotation.x = Math.PI / 2;
-  const dishFace = add(new THREE.Mesh(new THREE.SphereGeometry(dr, 26, 16, 0, Math.PI * 2, 0, Math.PI / 2.4), glow(THREE, '#7fd8ff')), dishGroup);
+  dishGroup.add(dishBack);
+  const dishFace = new THREE.Mesh(new THREE.SphereGeometry(dr, 32, 18, 0, Math.PI * 2, 0, Math.PI / 2.3), glow(THREE, '#7fd8ff', 0.95));
   dishFace.rotation.x = -Math.PI / 2;
-  dishFace.position.z = -0.1;
+  dishFace.position.z = -0.12;
+  dishGroup.add(dishFace);
   for (let i = 0; i < 1 + t.deflector; i++) {
-    const ring = add(new THREE.Mesh(new THREE.TorusGeometry(dr * (0.45 + i * 0.18), 0.09, 8, 30), glow(THREE, '#d5f6ff')), dishGroup);
-    ring.rotation.x = 0;
-    ring.position.z = -0.2 - i * 0.12;
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(dr * (0.42 + i * 0.19), 0.075, 8, 34), glow(THREE, '#d5f6ff', 0.9));
+    ring.position.z = -0.22 - i * 0.1;
+    dishGroup.add(ring);
   }
   parts.dish = dishGroup;
   eng.add(dishGroup);
   body.add(eng);
 
-  // ------------------------------------------------------------- nacelles
-  const nacCount = 2;
-  for (let i = 0; i < nacCount; i++) {
+  // ---------------------------------------------------------------- pylons
+  const pylons = [];
+  for (let i = 0; i < 2; i++) {
+    const side = i === 0 ? -1 : 1;
+    const rootPt = new THREE.Vector3(side * HR * 0.7, HY + 0.75, HZ + 1.0);
+    const tipPt = new THREE.Vector3(side * (NX - NR * 0.3), NY - NR * 0.75, NZ + 0.35);
+    const dir = tipPt.clone().sub(rootPt);
+    const len = dir.length();
+    const pylon = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.5, len, 4, 1), hullMat);
+    pylon.scale.z = 1.9;
+    pylon.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+    pylon.position.copy(rootPt).addScaledVector(dir, 0.5);
+    pylon.name = 'pylon' + i;
+    add(pylon);
+    pylons.push(pylon);
+  }
+
+  // -------------------------------------------------------------- nacelles
+  for (let i = 0; i < 2; i++) {
     const side = i === 0 ? -1 : 1;
     const nac = new THREE.Group();
     nac.name = 'nacelle' + i;
-    const nl = 7.6 * st.nacelleScale;
-    const nr = 0.95 * st.nacelleScale;
-    const x = side * (5.4 + t.nacelles * 0.42);
-    const y = 1.9 + t.nacelles * 0.1;
-    const z = 2.2;
+    nac.position.set(side * NX, NY, NZ);
 
-    // variable-geometry pylons sweep up with the refits
-    const pylon = new THREE.Mesh(new THREE.BoxGeometry(3.1, 0.34, 1.5), darkMat);
-    pylon.position.set(side * 4.4, 0.55, z - 0.4);
-    pylon.rotation.z = -side * (0.34 + t.nacelles * 0.05);
-    pylon.rotation.y = side * 0.12;
-    nac.add(pylon);
-
-    const tube = new THREE.Mesh(new THREE.CapsuleGeometry(nr, nl, 10, 20), hullMat);
+    // body
+    const tube = new THREE.Mesh(new THREE.CylinderGeometry(NR * 0.96, NR, NL, 28, 1), hullMat);
     tube.rotation.x = Math.PI / 2;
-    tube.position.set(x, y, z);
     nac.add(tube);
+    // front collar
+    const collar = new THREE.Mesh(new THREE.CylinderGeometry(NR * 1.04, NR * 1.02, 0.35, 28, 1), panelMat);
+    collar.rotation.x = Math.PI / 2;
+    collar.position.z = -NL / 2 + 1.5;
+    nac.add(collar);
 
-    // glowing warp coils, brighter with each tier
-    const coils = 2 + t.nacelles;
-    for (let c = 0; c < coils; c++) {
-      const coil = new THREE.Mesh(new THREE.TorusGeometry(nr * 1.02, 0.12, 8, 22), glow(THREE, nacGlow));
-      coil.position.set(x, y, z + 1.4 - c * (nl / (coils + 0.4)));
-      nac.add(coil);
-    }
-    const bussard = new THREE.Mesh(new THREE.SphereGeometry(nr * 0.92, 18, 12, 0, Math.PI * 2, 0, Math.PI / 2), glow(THREE, nacCore));
+    // bussard collector (forward) — the orange-red intake
+    const bussard = new THREE.Mesh(new THREE.SphereGeometry(NR * 0.98, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2), glow(THREE, '#ff7340', 0.95));
     bussard.rotation.x = -Math.PI / 2;
-    bussard.position.set(x, y, z + nl / 2 + 0.2);
+    bussard.position.z = -NL / 2;
     nac.add(bussard);
-    const cap = new THREE.Mesh(new THREE.CylinderGeometry(nr * 0.95, nr * 0.7, 0.9, 18, 1), accentMat);
-    cap.rotation.x = Math.PI / 2;
-    cap.position.set(x, y, z - nl / 2 - 0.2);
-    nac.add(cap);
+    for (let c = 0; c < 3; c++) {
+      const cage = new THREE.Mesh(new THREE.TorusGeometry(NR * (0.72 - c * 0.14), 0.035, 6, 24), darkMat);
+      cage.position.z = -NL / 2 + 0.22 + c * 0.34;
+      nac.add(cage);
+    }
 
-    parts.nacelles.push({ group: nac, coils: nac.children.filter((m) => m.material && m.material.isMeshBasicMaterial), bussard });
+    // warp coils, brighter and more numerous with each refit
+    const coils = [];
+    const coilCount = 2 + t.nacelles;
+    for (let c = 0; c < coilCount; c++) {
+      const coil = new THREE.Mesh(new THREE.TorusGeometry(NR * 1.02, 0.1, 8, 26), glow(THREE, nacGlow, 0.9));
+      coil.position.z = -NL * 0.06 + c * (NL * 0.5 / coilCount);
+      nac.add(coil);
+      coils.push(coil);
+    }
+    // warp grille: a long glowing panel on the outboard flank
+    const grille = new THREE.Mesh(
+      new THREE.CylinderGeometry(NR * 1.03, NR * 1.03, NL * 0.62, 24, 1, true, side > 0 ? -0.55 : Math.PI - 0.55, 1.1),
+      new THREE.MeshBasicMaterial({ color: nacGlow, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }),
+    );
+    grille.rotation.x = Math.PI / 2;
+    grille.position.z = NL * 0.06;
+    nac.add(grille);
+    parts.grilles.push(grille);
+
+    // stern cap + exhaust glow
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(NR * 1.02, NR * 0.72, 0.9, 24, 1), panelMat);
+    cap.rotation.x = Math.PI / 2;
+    cap.position.z = NL / 2 + 0.2;
+    nac.add(cap);
+    const exhaust = new THREE.Mesh(new THREE.CircleGeometry(NR * 0.6, 24), glow(THREE, nacCore, 0.9));
+    exhaust.position.z = NL / 2 + 0.66;
+    nac.add(exhaust);
+    parts.exhaust.push(exhaust);
+
+    const strobe = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), glow(THREE, '#ffffff'));
+    strobe.position.set(0, NR * 1.05, NL * 0.18);
+    nac.add(strobe);
+    parts.runningLights.push({ mesh: strobe, period: 1.4, phase: i * 0.7, color: '#ffffff' });
+
+    parts.nacelles.push({ group: nac, coils, bussard });
     body.add(nac);
   }
 
+  // --------------------------------------------------------- running lights
+  const port = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), glow(THREE, '#ff4b4b'));
+  port.position.set(-R * 0.97, 0.3, SCH);
+  add(port);
+  parts.runningLights.push({ mesh: port, period: 1.1, phase: 0, color: '#ff4b4b' });
+  const starboard = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), glow(THREE, '#5cff9d'));
+  starboard.position.set(R * 0.97, 0.3, SCH);
+  add(starboard);
+  parts.runningLights.push({ mesh: starboard, period: 1.1, phase: 0.55, color: '#5cff9d' });
+  const mast = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), glow(THREE, '#ffffff'));
+  mast.position.set(0, 2.2 * (R / 7.6) + SY, SCH);
+  add(mast);
+  parts.runningLights.push({ mesh: mast, period: 1.6, phase: 0.2, color: '#ffffff' });
+
   // --------------------------------------------------------------- weapons
   if (t.weapons >= 2) {
-    // photon torpedo launcher under the saucer
-    const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 1.6, 14, 1), darkMat);
+    // photon torpedo launcher in the neck fairing
+    const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.42, 1.7, 16, 1), darkMat);
     tube.rotation.x = Math.PI / 2;
-    tube.position.set(0, -0.9, sr * 0.55);
+    tube.position.set(0, -0.55, SCH + R * 0.62);
     add(tube);
-    const muzzle = new THREE.Mesh(new THREE.CircleGeometry(0.34, 14), glow(THREE, '#ffd166'));
-    muzzle.position.set(0, -0.9, sr * 0.55 + 0.82);
-    muzzle.rotation.y = Math.PI;
+    const muzzle = new THREE.Mesh(new THREE.CircleGeometry(0.27, 16), glow(THREE, '#ffd166'));
+    muzzle.position.set(0, -0.55, SCH + R * 0.62 - 0.87);
     add(muzzle);
     parts.torpedo = muzzle;
   }
@@ -293,34 +493,38 @@ export function buildEnterprise(THREE, ship) {
     // quantum spire array — four dorsal emitters
     for (let i = 0; i < 4; i++) {
       const a = (i / 4) * Math.PI * 2 + 0.4;
-      const spire = new THREE.Mesh(new THREE.ConeGeometry(0.26, 1.5, 8), glow(THREE, '#c0a8ff'));
-      spire.position.set(Math.cos(a) * sr * 0.62, 3.1, Math.sin(a) * sr * 0.62);
+      const spire = new THREE.Mesh(new THREE.ConeGeometry(0.2, 1.3, 8), glow(THREE, '#c0a8ff'));
+      spire.position.set(Math.cos(a) * R * 0.55, 1.95 * (R / 7.6) + SY, SCH + Math.sin(a) * R * 0.55);
       add(spire);
     }
   }
-  // windows: tiny emissive studs; more of them as the crew grows
-  const winCount = 14 + st.crew * 3;
-  for (let i = 0; i < winCount; i++) {
-    const a = (i / winCount) * Math.PI * 2;
-    const w = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.12, 0.1), glow(THREE, '#ffe9b0'));
-    w.position.set(Math.cos(a) * sr * 0.93, 0.85 + (i % 3) * 0.12, Math.sin(a) * sr * 0.93);
-    w.rotation.y = -a;
-    add(w);
-    parts.lights.push(w);
+  if (t.weapons >= 4) {
+    // retractable pulse cannons under the saucer rim
+    for (let i = 0; i < 2; i++) {
+      const a = i ? 0.9 : -0.9;
+      const gun = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.2, 1.5, 10, 1), darkMat);
+      gun.rotation.x = Math.PI / 2;
+      gun.position.set(Math.sin(a) * R * 0.7, SY - 0.55, SCH - Math.cos(a) * R * 0.7);
+      add(gun);
+      const tip = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), glow(THREE, '#ff9ad5'));
+      tip.position.set(Math.sin(a) * R * 0.7, SY - 0.55, SCH - Math.cos(a) * R * 0.7 - 0.75);
+      add(tip);
+      parts.banks.push(tip);
+    }
   }
 
   // ------------------------------------------------------- shield bubble
   const bubble = new THREE.Mesh(
-    new THREE.SphereGeometry(15 * (1 + t.deflector * 0.05), 24, 16),
+    new THREE.SphereGeometry(17 * (1 + t.deflector * 0.04), 28, 18),
     new THREE.MeshBasicMaterial({ color: '#5fb8ff', transparent: true, opacity: 0.09, wireframe: true, depthWrite: false }),
   );
-  bubble.position.y = 0.4;
+  bubble.position.y = -0.6;
   bubble.visible = false;
   add(bubble);
   parts.shieldBubble = bubble;
 
   root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-  root.userData.size = { saucerRadius: sr, length: hullLen + 8 };
+  root.userData.size = { saucerRadius: R, length: HZ + NL / 2 - (SCH - R) };
   return root;
 }
 

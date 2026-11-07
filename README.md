@@ -270,6 +270,10 @@ js/main.js            boot + requestAnimationFrame loop
 
 * **Procedural cloud sea** — a shader sky dome, three drifting puff fields and a scrolling
   cloud deck, so there is no ground anywhere.
+* **An open world, not a box** — the cloud sea is generated in 320 m cells from a hash of the
+  seed and the cell coordinates, and the cells stream in around the ship (3×3 resident, old
+  cells disposed). Fly for as long as you like: there is no wall, no clamp and no fixed island
+  count, and memory stays flat because nothing outside the window is kept.
 * **A modular starship** — `upgradeShip('saucer' | 'nacelles' | 'deflector' | 'weapons')`
   rebuilds the actual Enterprise mesh (and its stats) through five cinematic tiers.
 * **Sky fortresses** — a 12×12 holographic grid of turrets, shield pylons, missile batteries,
@@ -281,9 +285,53 @@ js/main.js            boot + requestAnimationFrame loop
 * **UPGRADE ALL** — one click buys every affordable refit across all four components.
 * **Manual aim** — `L` drops the auto-lock assist: no homing, pure reticle skill, switchable back.
 * **Touch controls** — auto-detected thumb-stick, look-pad and action buttons for phones.
-* **193 headless assertions** (`npm run smoke:skyuss` = 152, `smoke:skyuss:boot` = 41) cover the
-  sim, the ship constructor, every fortress piece, both art styles, the aim modes, the touch
-  layer and the whole browser wiring — no GPU needed.
+* **253 headless assertions** (`npm run smoke:skyuss` = 212, `smoke:skyuss:boot` = 41) cover the
+  sim, world streaming, the ship constructor and hull detail, every fortress piece, both art
+  styles, the aim modes, the touch layer and the whole browser wiring — no GPU needed.
+
+### The ship, rebuilt
+
+The hull is modelled, not approximated. `buildEnterprise()` builds:
+
+* a **lathed saucer** (17-point profile, 96 segments) with a B-deck plateau, bridge module and
+  dome, rim band, undercut lower hull and concentric deck seams — instead of the stack of
+  cylinders it used before;
+* **engineering hull** with a dorsal spine, plating rings, deflector housing and a lit shuttlebay;
+* **nacelles** with orange bussard collectors and cages, warp coils that grow with the refit, a
+  curved glowing **warp grille** per flank, lit exhaust and a strobe;
+* **swept pylons** and a tapered, blade-like neck that actually connect the parts;
+* **impulse ports**, lit window bands (two solid rings read as hundreds of cabins for two draw
+  calls), red/green navigation lights, phaser strips, torpedo launcher, dorsal spires and
+  pulse cannons at the top weapon tiers;
+* hull materials tuned for the scene's lighting: with **no environment map** a high-metalness
+  PBR hull renders almost black, so the paint is metalness ≈ 0.3 / roughness ≈ 0.5.
+
+`userData.parts` stays the renderer's animation surface (`nacelles`, `banks`, `dish`,
+`shieldBubble`, `lights`) and gained `grilles`, `exhaust`, `impulse` and `runningLights`, so the
+warp grilles breathe with the throttle and the navigation lights blink on their own cycles.
+
+### The world, detailed
+
+* **Islands** are vertex-coloured rock shells (two noise octaves, strata bands, moss on the
+  sunward shelves), with a plateau cap, cliffs, instanced spurs/trees/boulders, ruined columns
+  and lintels, beacons and matrix nodes.
+* **Derelicts** carry buckled saucers, domed hulls, a still-lit window deck, torn plating, a
+  snapped nacelle with a dead bussard, venting scars and an instanced debris cloud.
+* **Storms** layer two particle shells, a charged core, lightning chords and two counter-rotating
+  rings — six draws for the whole volume.
+
+Prop meshes are `InstancedMesh`, so an island costs ~11 draws and a wreck ~11 regardless of how
+much debris it has.
+
+### Looking at the models without a GPU
+
+jsdom has no WebGL, so both the ship and the world have offline preview renderers
+(painter's-algorithm rasteriser on `@napi-rs/canvas`):
+
+```bash
+node skyuss/tools/ship-preview.mjs  --tiers 2,2,2,2 --out shots/skyuss-ship.png
+node skyuss/tools/world-preview.mjs --out shots/skyuss-world.png
+```
 
 See [skyuss/README.md](skyuss/README.md) for the design notes and controls.
 
@@ -294,6 +342,7 @@ npm install          # dev-only tooling (not needed to play)
 npm test             # headless jsdom smoke test: drive, loot, craft, build, sail, win,
                      # plus 3D picking, the on-foot rig, interior furniture and save/load
 npm run shots        # render real frames to shots/*.png with a native canvas
+npm run shots:skyuss # offline renders of the Enterprise and the sky world
 node tools/perf.mjs  # frame-time / face-count sanity check
 ```
 

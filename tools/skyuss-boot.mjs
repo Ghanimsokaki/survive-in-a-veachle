@@ -297,6 +297,32 @@ key('Escape'); await frames();
   assert(errors.length === 0, 'the touch layer raises no errors');
 }
 
+// open world: flying far streams new cells in and frees the old ones
+{
+  const g = window.__skyuss.game;
+  const before = [...window.__skyuss.worldCells.keys()];
+  assert(before.length === 9, `the 3x3 window is resident at spawn (${before.length} cells)`);
+  const islandsBefore = g.world.islands.length;
+  g.pos = { x: 9000, y: 80, z: -6000 };
+  await frames();
+  const after = [...window.__skyuss.worldCells.keys()];
+  assert(after.length === 9, `still exactly 3x3 cells 10 km out (${after.length})`);
+  assert(after.every((k) => !before.includes(k)), 'the cells around the old position were freed');
+  assert(g.world.cx === Math.round(9000 / 320), 'the sim followed the ship into the new sector');
+  assert(g.world.islands.length > 0 && islandsBefore > 0, 'the far side of the cloud sea has islands too');
+  const groups = window.__skyuss.worldGroup.children.filter((o) => o.name.startsWith('cell '));
+  assert(groups.length === after.length, 'the scene mirrors exactly the streamed cells');
+  const meshes = groups.reduce((n, gr) => n + gr.children.length, 0);
+  assert(meshes > 10, `far cells are populated with meshes (${meshes})`);
+  assert(document.getElementById('sectorLine').textContent.includes('SECTOR'), 'the HUD shows the current sector');
+  g.pos = { x: 0, y: 62, z: 210 };
+  await frames();
+  const home = [...window.__skyuss.worldCells.keys()];
+  assert(home.some((k) => before.includes(k)), 'flying home streams the original cells back in');
+  assert(window.__skyuss.worldCells.size === 9, 'the window never grows past 3x3');
+  assert(errors.length === 0, 'streaming the world raises no errors');
+}
+
 // a few more simulated seconds with combat noise
 await frames();
 assert(drew > 150, `the loop keeps rendering (${drew} draw calls)`);

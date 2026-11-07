@@ -20,7 +20,7 @@ export const UI = {
     this.el = {
       hud: $('hud'), menu: $('menu'), panelLayer: $('panelLayer'),
       toastBox: $('toasts'), banner: $('banner'), bannerTitle: $('bannerTitle'), bannerText: $('bannerText'),
-      objective: $('objective'), siegeLine: $('siegeLine'), prompt: $('prompt'),
+      objective: $('objective'), siegeLine: $('siegeLine'), sectorLine: $('sectorLine'), prompt: $('prompt'),
       hullFill: $('hullFill'), hullText: $('hullText'),
       shieldFill: $('shieldFill'), shieldText: $('shieldText'),
       energyFill: $('energyFill'), energyText: $('energyText'),
@@ -262,6 +262,12 @@ export const UI = {
     set('siege', siegeTxt, (v) => {
       this.el.siegeLine.innerHTML = v;
       this.el.siegeLine.classList.toggle('hot', game.siegeTimer < 25 || game.siegeTimer <= 0);
+    });
+
+    const cx = game.stream ? game.stream.cx : 0;
+    const cz = game.stream ? game.stream.cz : 0;
+    set('sector', `${cx},${cz},${game.charted || 0}`, () => {
+      this.el.sectorLine.innerHTML = `SECTOR <b>${cx},${cz}</b> · ${game.charted || 0} charted`;
     });
 
     // reticle / lock / abyss

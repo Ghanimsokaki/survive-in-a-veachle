@@ -8,6 +8,11 @@ export const WORLD = {
   cloudTop: 46,            // soft ceiling of the cloud deck
   safeFloor: -30,          // above this you are flying; below it you are falling
   abyssY: -140,            // past this the sky tears you apart
+  // Open world: content is generated per cell and streamed around the ship,
+  // so there is no edge to the cloud sea.
+  cellSize: 320,           // metres per world cell
+  viewRadius: 1,           // cells kept loaded around the ship (3x3)
+  farLimit: 40000,         // sanity clamp only, far beyond any real flight
   islands: 16,
   derelicts: 7,
   storms: 5,

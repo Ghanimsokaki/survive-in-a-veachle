@@ -21,8 +21,9 @@ Everything is static: no bundler, no build step, and **Three.js r170 is vendored
 
 ## The loop
 
-1. **Fly out** into the cloud sea. Derelict starship wrecks, floating islands and ion storms
-   are scattered across a 520 m radius of sky, all seeded and regenerated identically.
+1. **Fly out** into the cloud sea — it is genuinely endless (see *The open world* below).
+   Derelict starship wrecks, floating islands and ion storms are scattered across it, seeded so
+   that the same place is always the same place.
 2. **Scavenge.** Press `E` inside tractor range to strip a derelict (`Ti`, `Di`, matrix
    components) and fill your cargo hold. Destroyed pirates drop salvage that your tractor
    beam reels in — with shields and a hull you can only carry so much.
@@ -33,6 +34,47 @@ Everything is static: no bundler, no build step, and **Three.js r170 is vendored
    shield pylons, SAM batteries, refineries and matrix condensers.
 6. **Defend.** Ambient pirates harass you; a **siege fleet** hits the fortress every ~3 minutes.
    Lose it and half your stores burn.
+
+## The open world
+
+The cloud sea used to be a 520 m square with a hard wall. It is now generated per **cell** and
+streamed, so there is no edge anywhere.
+
+* `generateCell(seed, cx, cz)` is a pure function of the seed and the cell's grid coordinates:
+  islands (1–4), wrecks (0–2) and storms (0–1) per 320 m cell, all with ids namespaced by the
+  cell (`i:12:-9:0`) so they can never collide with anything else in the world.
+* `WorldStream` keeps a 3×3 window of cells around the ship, rebuilds the flat view only when the
+  ship crosses a border, and prunes cells that fall more than one ring behind. Memory and draw
+  calls stay flat however far you fly.
+* The renderer mirrors the window: each cell is one `THREE.Group`, built when the cell streams in
+  and disposed (geometry **and** materials) when it streams out.
+* The fortress's graveyard stays clear: no island or wreck is ever placed inside
+  `WORLD.graveyard.r` of the origin.
+* **Stripped sites stay stripped.** `stream.markLooted(id)` is a permanent set, so a wreck you
+  looted at 26 km is still empty when you fly back — the save file stores the ids
+  (`looted.ids`) plus the sector keys you have charted (`discovered`), and both round-trip.
+* The HUD shows the current sector (`SECTOR x,z`) and how many sectors you have charted.
+* The only clamp left is a sanity limit at ±40 km, far beyond any real flight.
+
+## The ship model
+
+`buildEnterprise()` is hand-built geometry — no imported assets — but it is modelled rather than
+approximated:
+
+| element | how it is made |
+| --- | --- |
+| primary hull | `LatheGeometry` over a 17-point profile, 96 segments: B-deck plateau, rim band, undercut bottom, deck seams |
+| bridge | stepped module + hemisphere dome + sensor pod |
+| engineering hull | capsule + dorsal spine + plating rings + deflector housing + lit shuttlebay |
+| nacelles | tapered tubes, orange bussard collector with a three-ring cage, 2–6 warp coils, curved warp grille per flank, lit exhaust, strobe |
+| connection | swept pylon blades (`setFromUnitVectors` between hull and nacelle) and a tapered neck |
+| lights | two lit window bands per hull section, 10 individual cabins, red/green/white navigation lights |
+| weapons | rim phaser strips, torpedo launcher, dorsal spires (tier 3), pulse cannons (tier 4) |
+
+Because the scene has **no environment map**, hull materials use low metalness (≈0.3) — a
+metalness-0.7 PBR hull with nothing to reflect renders black, which is what made the old ship
+look like a silhouette. `userData.parts` is still the renderer's animation surface and now also
+carries `grilles`, `exhaust`, `impulse` and `runningLights`.
 
 ## The Enterprise — a modular 3D ship constructor
 
@@ -168,10 +210,23 @@ tools/skyuss-smoke.mjs   headless test: 152 assertions, no GPU required
 The split is deliberate: **`sim.js` never imports Three.js and `main.js` never owns game
 state**, so the entire gameplay loop can be run and asserted in Node.
 
+## Previewing the models without WebGL
+
+`skyuss/tools/preview-lib.mjs` is a small painter's-algorithm rasteriser on `@napi-rs/canvas`
+that draws the *actual* Three.js object graph. Two thin wrappers use it:
+
+```bash
+node skyuss/tools/ship-preview.mjs  --tiers 2,2,2,2 --out shots/skyuss-ship.png
+node skyuss/tools/world-preview.mjs --out shots/skyuss-world.png
+# handier flags: --only pylon | --colour   (isolate or colour-code parts)
+```
+
+Useful because jsdom has no WebGL: this is how the hull proportions get reviewed.
+
 ## Tests
 
 ```bash
-npm run smoke:skyuss        # 152 assertions: sim + meshes, no GPU
+npm run smoke:skyuss        # 212 assertions: sim + streaming + meshes, no GPU
 npm run smoke:skyuss:boot   # 41 assertions: boots the real renderer headlessly
 npm run check               # syntax-check both games
 npm run test:all            # every suite in this repo
@@ -182,6 +237,13 @@ into the abyss, triggers a siege, saves and loads, builds every fortress piece, 
 every Enterprise tier — then verifies the browser layer: every module import resolves, every
 `THREE.*` symbol used by the renderer exists in the vendored build, and every DOM id the UI
 binds exists in `index.html`.
+
+World streaming has its own section: cells are deterministic and id-namespaced, the 3×3 window
+is exactly the union of its cells and is not rebuilt while the ship stays put, flying 26 km out
+still generates a populated world, old cells are pruned, loot survives a cell being evicted,
+and the save round-trips looted ids and charted sectors. Hull detail gets its own too: the
+saucer is a lathe, the structural members are named, the nacelles sit above and clear of the
+hull, and the materials stay in a metalness band that actually lights without an env map.
 
 `tools/skyuss-boot.mjs` goes further: it runs the **real `main.js`** inside jsdom against a
 stub WebGL2 context, so the whole renderer pipeline executes — shader compilation, scene

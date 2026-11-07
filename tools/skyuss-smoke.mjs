@@ -5,7 +5,7 @@ import * as THREE from '../skyuss/vendor/three.module.js';
 import { Enterprise, buildEnterprise, tierRows, COMPONENTS, MAX_TIER } from '../skyuss/js/enterprise.js';
 import { SkyFort, buildFort, buildFortGrid } from '../skyuss/js/fort.js';
 import { SkyGame } from '../skyuss/js/sim.js';
-import { generateWorld, buildIsland, buildDerelict, buildStorm, buildHomeBeacon } from '../skyuss/js/world.js';
+import { generateWorld, generateCell, WorldStream, buildIsland, buildDerelict, buildStorm, buildHomeBeacon } from '../skyuss/js/world.js';
 import { FORT, FORT_PIECES, SHIP_UPGRADES, WORLD } from '../skyuss/js/config.js';
 
 const errors = [];
@@ -98,12 +98,76 @@ section('modular 3D ship constructor');
   assert(meshMax.userData.parts.banks.length > mesh0.userData.parts.banks.length, '360° phaser coverage grows with the saucer');
   assert(!!meshMax.userData.parts.torpedo, 'photon launcher appears at weapons tier 2+');
   assert(meshMax.userData.parts.nacelles[0].coils.length > mesh0.userData.parts.nacelles[0].coils.length, 'more warp coils on higher nacelles');
-  const glow0 = mesh0.userData.parts.nacelles[0].bussard.material.color.getHex();
-  const glowMax = meshMax.userData.parts.nacelles[0].bussard.material.color.getHex();
+  const glow0 = mesh0.userData.parts.nacelles[0].coils[0].material.color.getHex();
+  const glowMax = meshMax.userData.parts.nacelles[0].coils[0].material.color.getHex();
   assert(glow0 !== glowMax, 'nacelle glow colour changes across refits');
+  assert(mesh0.userData.parts.nacelles[0].bussard.material.color.r > 0.8,
+    'the bussard collector stays the classic red-orange intake');
   let meshes = 0;
   meshMax.traverse((o) => { if (o.isMesh) meshes++; });
   assert(meshes > 30, `refit model is detailed (${meshes} meshes)`);
+}
+
+section('hull detail (lathed saucer, nacelles, lights)');
+{
+  const ship = new Enterprise({ saucer: 2, nacelles: 2, deflector: 2, weapons: 2 });
+  const mesh = buildEnterprise(THREE, ship);
+  const parts = mesh.userData.parts;
+
+  // the saucer is a lathed shell, not a stack of cylinders
+  let lathe = null;
+  mesh.traverse((o) => { if (o.isMesh && o.geometry && o.geometry.type === 'LatheGeometry') lathe = o; });
+  assert(!!lathe, 'the primary hull is a lathed saucer');
+  const lathePos = lathe.geometry.attributes.position;
+  assert(lathePos.count > 1200, `the saucer shell is finely tessellated (${lathePos.count} verts)`);
+  const bb = new THREE.Box3().setFromObject(lathe);
+  const size = bb.getSize(new THREE.Vector3());
+  const expectR = mesh.userData.size.saucerRadius;
+  assert(Math.abs(size.x - expectR * 2) < expectR * 0.1, `the saucer is as wide as it claims (${size.x.toFixed(1)} vs ${(expectR * 2).toFixed(1)})`);
+  assert(size.y < size.x * 0.35, 'the saucer is a disc, not a drum');
+
+  // named structural members
+  const names = new Set();
+  mesh.traverse((o) => { if (o.name) names.add(o.name); });
+  for (const n of ['hull', 'saucer', 'engineering', 'nacelle0', 'nacelle1', 'pylon0', 'pylon1', 'neck']) {
+    assert(names.has(n), `the model names its ${n}`);
+  }
+
+  // detail parts the renderer animates
+  assert(parts.grilles.length === 2 && parts.grilles.every((g) => g.material.transparent), 'both nacelles carry an animated warp grille');
+  assert(parts.exhaust.length === 2, 'both nacelles have a lit exhaust');
+  assert(parts.impulse.length === 2, 'the saucer has two impulse ports');
+  assert(parts.runningLights.length >= 4, `${parts.runningLights.length} navigation lights blink`);
+  assert(!!parts.shuttlebay && parts.shuttlebay.children.length >= 3, 'the engineering hull has a shuttlebay');
+  assert(parts.lights.length >= 4, 'lit window rows are modelled');
+  assert(parts.shieldBubble.visible === false, 'the shield bubble starts hidden');
+
+  // layering: nacelles sit outboard and above the engineering hull
+  const eng = mesh.getObjectByName('engineering');
+  const engPos = eng.getWorldPosition(new THREE.Vector3());
+  const nacPos = parts.nacelles[0].group.getWorldPosition(new THREE.Vector3());
+  assert(Math.hypot(nacPos.x - engPos.x, nacPos.z - engPos.z) > 8, 'nacelles sit clear of the hull');
+  assert(nacPos.y > engPos.y, 'nacelles ride above the engineering hull');
+
+  // hull materials stay non-metallic enough to light without an env map
+  let metal = 0, rough = 0, n = 0;
+  mesh.traverse((o) => {
+    if (o.isMesh && o.material && o.material.isMeshStandardMaterial) { metal += o.material.metalness; rough += o.material.roughness; n++; }
+  });
+  assert(n > 10 && metal / n < 0.45, `hull materials are painted, not bare metal (avg metalness ${(metal / n).toFixed(2)})`);
+  assert(rough / n > 0.3 && rough / n < 0.8, `hull roughness is in a sane band (${(rough / n).toFixed(2)})`);
+
+  // the whole ship is within the camera's comfortable framing volume
+  const visibleBox = new THREE.Box3();
+  mesh.traverse((o) => {
+    if (!o.isMesh) return;
+    let vis = true;
+    for (let p = o; p; p = p.parent) if (p.visible === false) { vis = false; break; }
+    if (vis) visibleBox.expandByObject(o);
+  });
+  const all = visibleBox.getSize(new THREE.Vector3());
+  assert(all.z > 20 && all.z < 44, `the ship is ${all.z.toFixed(1)} m long`);
+  assert(all.y > 4 && all.y < 18, `the ship is ${all.y.toFixed(1)} m tall`);
 }
 
 // ------------------------------------------------------------------ fortress
@@ -211,20 +275,131 @@ section('procedural cloud world');
   const c = generateWorld(999);
   assert(JSON.stringify(a) !== JSON.stringify(c), 'different seeds make different skies');
   assert(a.islands.length >= 8, `islands are placed (${a.islands.length})`);
-  assert(a.derelicts.length === WORLD.derelicts, 'derelict wrecks are placed');
-  assert(a.storms.length === WORLD.storms, 'ion storms are placed');
-  const spawnClear = a.islands.every((i) => Math.hypot(i.x, i.z) > WORLD.graveyard.r);
-  assert(spawnClear, 'the home graveyard is kept clear of islands');
+  assert(a.derelicts.length >= 3, `derelict wrecks are placed (${a.derelicts.length})`);
+  assert(a.islands.every((i) => Math.hypot(i.x, i.z) > WORLD.graveyard.r), 'the home graveyard is kept clear of islands');
 
   const island = a.islands[0];
   const im = buildIsland(THREE, island);
   assert(im.isGroup && im.children.length > 2, 'island builds rock + cap + boulders');
   const dm = buildDerelict(THREE, a.derelicts[0]);
   assert(dm.isGroup && dm.children.length > 4, 'derelict builds a wreck with debris');
-  const sm = buildStorm(THREE, a.storms[0]);
+  const sm = buildStorm(THREE, a.storms[0] || generateCell(1, 0, 0).storms[0] || { x: 0, y: 40, z: 0, r: 80, phase: 0, seed: 3 });
   assert(sm.userData.points.isPoints, 'ion storm is a particle volume');
   const beacon = buildHomeBeacon(THREE);
   assert(beacon.isGroup, 'home beacon builds');
+}
+
+section('world models (islands, wrecks, storms)');
+{
+  const cell = generateCell(20261107, 0, 0);
+  const island = cell.islands[0] || generateWorld(7).islands[0];
+  const im = buildIsland(THREE, island);
+
+  // the rock shell carries strata + moss in vertex colours
+  let shell = null;
+  im.traverse((o) => { if (o.isMesh && o.geometry.attributes.color) shell = o; });
+  assert(!!shell, 'the island rock is vertex-coloured');
+  const col = shell.geometry.attributes.color;
+  assert(col.count === shell.geometry.attributes.position.count, 'every rock vertex has a colour');
+  let greens = 0;
+  for (let i = 0; i < col.count; i++) if (col.getY(i) > col.getX(i) && col.getY(i) > col.getZ(i)) greens++;
+  assert(greens > 0, `moss is painted on the sunward shelves (${greens} green verts)`);
+  assert(shell.material.vertexColors === true, 'the rock material honours those colours');
+
+  let instanced = 0, islandMeshes = 0;
+  im.traverse((o) => { if (o.isMesh) { islandMeshes++; if (o.isInstancedMesh) instanced++; } });
+  assert(instanced >= 2, `props are instanced for cheap draw calls (${instanced} instanced meshes)`);
+  assert(islandMeshes <= 16, `an island stays cheap to draw (${islandMeshes} meshes)`);
+  const spire = buildIsland(THREE, { ...island, kind: 'spire', ruins: false, matrixNode: false });
+  let spireMeshes = 0;
+  spire.traverse((o) => { if (o.isMesh) spireMeshes++; });
+  assert(spireMeshes < islandMeshes, 'a bare spire carries fewer props than a plateaumoss island');
+  const ruins = buildIsland(THREE, { ...island, ruins: true });
+  assert(!!ruins.userData.beacon, 'ruined islands still carry a navigation beacon');
+
+  // wrecks: lit decks, torn plates, instanced debris
+  const dm = buildDerelict(THREE, cell.derelicts[0] || generateWorld(7).derelicts[0]);
+  let debrisInstanced = 0, wreckMeshes = 0;
+  dm.traverse((o) => { if (o.isMesh) { wreckMeshes++; if (o.isInstancedMesh) debrisInstanced++; } });
+  assert(debrisInstanced >= 1, 'wreck debris is instanced');
+  assert(wreckMeshes <= 16, `a derelict stays cheap to draw (${wreckMeshes} meshes)`);
+  assert(!!dm.userData.beacon, 'wrecks keep a distress beacon');
+
+  // storms: layered volumes
+  const sm = buildStorm(THREE, { x: 0, y: 0, z: 0, r: 80, phase: 1.2, seed: 3 });
+  assert(sm.userData.points.isPoints && sm.userData.points.geometry.attributes.position.count === 900,
+    'the storm core volume holds 900 particles');
+  assert(!!sm.userData.inner && !!sm.userData.core, 'storms have an inner shell and a charged core');
+  assert(!!sm.userData.bolts && sm.userData.bolts.isLineSegments, 'storms throw lightning');
+  let stormMeshes = 0;
+  sm.traverse((o) => { if (o.isMesh) stormMeshes++; });
+  assert(stormMeshes <= 6, `a storm is a handful of draws (${stormMeshes})`);
+}
+
+section('open world streaming');
+{
+  // a cell is a pure function of (seed, cx, cz) — same place every time you fly back
+  const c1 = generateCell(77, 12, -9);
+  const c2 = JSON.parse(JSON.stringify(generateCell(77, 12, -9)));
+  assert(JSON.stringify(c1) === JSON.stringify(c2), 'a cell is deterministic from seed + coordinates');
+  assert(JSON.stringify(generateCell(77, 12, -9)) !== JSON.stringify(generateCell(77, 12, -8)), 'neighbouring cells differ');
+  assert(c1.key === '12,-9' && c1.cx === 12 && c1.cz === -9, 'cells know their own coordinates');
+  assert(c1.islands.every((i) => i.id.startsWith('i:12:-9:')), 'island ids are namespaced by cell');
+
+  // ids stay unique across a whole region, which is what saves rely on
+  const ids = new Set();
+  let total = 0;
+  for (let cx = -4; cx <= 4; cx++) {
+    for (let cz = -4; cz <= 4; cz++) {
+      const cell = generateCell(77, cx, cz);
+      for (const o of [...cell.islands, ...cell.derelicts, ...cell.storms]) { ids.add(o.id); total++; }
+    }
+  }
+  assert(ids.size === total && total > 100, `${total} objects across 81 cells, all with unique ids`);
+
+  // the stream window follows the ship
+  const stream = new WorldStream(31337);
+  const near = stream.update({ x: 0, y: 60, z: 0 });
+  assert(stream.cache.size === 9 && near.islands.length > 0, 'a 3x3 cell window streams in around the ship');
+  const sumIslands = [...stream.cache.values()].reduce((n, cell) => n + cell.islands.length, 0);
+  assert(near.islands.length === sumIslands, 'the view is exactly the union of the loaded cells');
+  assert(stream.update({ x: 10, y: 60, z: 10 }) === near, 'the view is not rebuilt while the ship stays in its cell');
+
+  const before = stream.cache.size;
+  const far = stream.update({ x: 26000, y: 60, z: -31000 });
+  assert(far.cx === Math.round(26000 / WORLD.cellSize), 'the stream tracks the far side of the map');
+  assert(far.islands.length > 0 && far.storms !== undefined, 'the world still generates 26 km from home');
+  assert(stream.cache.size <= 25 && stream.generated > before, 'old cells are pruned, memory stays flat');
+
+  // looted state outlives the cell being unloaded
+  const target = far.islands[0];
+  stream.markLooted(target.id);
+  stream.update({ x: 0, y: 60, z: 0 });
+  assert(!stream.cache.has(target.cell), 'the looted cell is evicted while you fly home');
+  const back = stream.update({ x: 26000, y: 60, z: -31000 });
+  assert(back.islands.find((i) => i.id === target.id).looted, 'loot stays looted after the cell streams back in');
+  assert(stream.stats().looted === 1, 'the stream counts stripped sites');
+
+  // and the sim really is unbounded: no clamp at the old 260 m wall
+  const g = new SkyGame({ seed: 4 });
+  g.pos = { x: 1200, y: 70, z: -900 };
+  for (let i = 0; i < 5; i++) g.update(1 / 60, {});
+  assert(Math.abs(g.pos.x) > WORLD.cloudBand, 'the ship flies past the old edge of the cloud sea');
+  assert(g.world.islands.length > 0 && g.world.cx === Math.round(1200 / WORLD.cellSize), 'new cells are already populated out there');
+  assert(g.discovered.size >= 2, `sectors charted as you fly (${g.discovered.size})`);
+
+  // looted ids round-trip through the save file
+  const g2 = new SkyGame({ seed: 4 });
+  const d0 = g2.world.derelicts[0];
+  g2.pos = { x: d0.x, y: d0.y, z: d0.z };
+  g2.update(1 / 60, {});
+  g2.interact();
+  const blob = JSON.parse(JSON.stringify(g2.toJSON()));
+  assert(blob.looted.ids.includes(d0.id), 'the save lists stripped sites by id');
+  const loaded = SkyGame.fromJSON(blob);
+  loaded.update(1 / 60, {});
+  assert(loaded.world.derelicts.find((x) => x.id === d0.id).looted, 'loaded saves remember stripped site ids');
+  assert(loaded.discovered.size === g2.discovered.size, 'charted sectors survive save/load');
 }
 
 // ----------------------------------------------------------------------- sim

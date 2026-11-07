@@ -4,7 +4,7 @@
 
 import { Enterprise } from './enterprise.js';
 import { SkyFort } from './fort.js';
-import { generateWorld, nearestDerelict, nearestIsland, stormAt } from './world.js';
+import { WorldStream, generateWorld, nearestDerelict, nearestIsland, stormAt } from './world.js';
 import { WORLD, PIRATE_TYPES, SIEGE, SCAVENGE, FORT } from './config.js';
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -13,7 +13,10 @@ const lerp = (a, b, t) => a + (b - a) * t;
 export class SkyGame {
   constructor(opts = {}) {
     this.seed = opts.seed ?? WORLD.seed;
-    this.world = generateWorld(this.seed);
+    // open world: cells stream in around the ship, no edges, no fixed size
+    this.stream = new WorldStream(this.seed);
+    this.world = this.stream.view;
+    this.discovered = new Set();
     this.ship = new Enterprise(opts.tiers);
     this.fort = new SkyFort(0, 8, 0);
     // a starter deck around the core: two platforms and one turret
@@ -33,6 +36,8 @@ export class SkyGame {
     this.log = [];
 
     this.pos = { x: 0, y: 62, z: 210 };
+    this.world = this.stream.update(this.pos);
+    this.visitCell();
     this.yaw = Math.PI;          // facing home
     this.pitch = 0;
     this.roll = 0;
@@ -208,6 +213,18 @@ export class SkyGame {
   }
 
   // ---------------------------------------------------------------- scavenging
+  /** Remember which cells have been flown through (HUD: sectors charted). */
+  visitCell() {
+    if (this.stream.cx == null) return;
+    const key = this.stream.cx + ',' + this.stream.cz;
+    if (!this.discovered.has(key)) this.discovered.add(key);
+  }
+
+  /** How many 320 m sectors of the cloud sea have been charted. */
+  get charted() {
+    return this.discovered.size;
+  }
+
   interact() {
     if (this.nearFort && this.cargoTotal > 0) return this.deposit();
     const d = this.nearDerelict;
@@ -219,6 +236,7 @@ export class SkyGame {
         matrix: d.matrix,
       };
       d.looted = true;
+      this.stream.markLooted(d.id);
       this.stats.looted += 1;
       this.addCargo(loot);
       this.fx.loot += 1;
@@ -229,6 +247,7 @@ export class SkyGame {
     const island = this.nearIsland;
     if (island && !island.looted) {
       island.looted = true;
+      this.stream.markLooted(island.id);
       const loot = {
         titanium: Math.round(SCAVENGE.islandLoot.titanium[0] + Math.random() * 40),
         dilithium: Math.round(SCAVENGE.islandLoot.dilithium[0] + Math.random() * 20),
@@ -460,10 +479,10 @@ export class SkyGame {
     this.pos.y += this.velocity.y * dt;
     this.pos.z += this.velocity.z * dt;
 
-    // soft walls of the playable volume
-    const lim = WORLD.cloudBand;
-    if (Math.abs(this.pos.x) > lim) { this.pos.x = Math.sign(this.pos.x) * lim; this.emit('warn', 'You are reaching the edge of the cloud sea.'); }
-    if (Math.abs(this.pos.z) > lim) { this.pos.z = Math.sign(this.pos.z) * lim; }
+    // no walls: only a sanity clamp far past anything you can reach by flying
+    const far = WORLD.farLimit ?? 40000;
+    this.pos.x = clamp(this.pos.x, -far, far);
+    this.pos.z = clamp(this.pos.z, -far, far);
     this.pos.y = Math.min(this.pos.y, 420);
   }
 
@@ -472,6 +491,9 @@ export class SkyGame {
     if (this.screen !== 'playing') return;
     dt = Math.min(dt, 0.05);
     this.t += dt;
+    // stream the open world around the ship (cheap: only on cell change)
+    this.world = this.stream.update(this.pos);
+    this.visitCell();
     const st = this.ship.stats;
 
     this.applyInput(input, dt);
@@ -685,9 +707,9 @@ export class SkyGame {
           const a = Math.random() * Math.PI * 2;
           const d = 300 + Math.random() * 120;
           const e = this.spawnEnemy(Math.random() > 0.65 ? 'raider' : 'skiff', {
-            x: clamp(this.pos.x + Math.cos(a) * d, 40, WORLD.cloudBand - 40),
+            x: this.pos.x + Math.cos(a) * d,
             y: clamp(this.pos.y + (Math.random() - 0.5) * 40, WORLD.safeFloor + 40, 300),
-            z: clamp(this.pos.z + Math.sin(a) * d, 40, WORLD.cloudBand - 40),
+            z: this.pos.z + Math.sin(a) * d,
           });
           e.target = 'ship';
         }
@@ -750,10 +772,8 @@ export class SkyGame {
       yaw: this.yaw,
       hull: this.hull,
       stats: { ...this.stats },
-      looted: {
-        derelicts: this.world.derelicts.filter((d) => d.looted).map((d) => d.id),
-        islands: this.world.islands.filter((i) => i.looted).map((i) => i.id),
-      },
+      looted: { ids: [...this.stream.looted] },
+      discovered: [...this.discovered],
       siegeWave: this.siegeWave,
       settings: { ...this.settings },
     };
@@ -769,14 +789,14 @@ export class SkyGame {
     g.hull = Math.min(g.ship.stats.hull, d.hull ?? g.ship.stats.hull);
     g.shields = g.ship.stats.maxShields;
     Object.assign(g.stats, d.stats || {});
-    for (const id of (d.looted && d.looted.derelicts) || []) {
-      const t = g.world.derelicts.find((x) => x.id === id);
-      if (t) t.looted = true;
-    }
-    for (const id of (d.looted && d.looted.islands) || []) {
-      const t = g.world.islands.find((x) => x.id === id);
-      if (t) t.looted = true;
-    }
+    const saved = [
+      ...((d.looted && d.looted.ids) || []),
+      ...((d.looted && d.looted.derelicts) || []),
+      ...((d.looted && d.looted.islands) || []),
+    ];
+    for (const id of saved) g.stream.markLooted(id);
+    for (const key of d.discovered || []) g.discovered.add(key);
+    g.world = g.stream.update(g.pos);
     g.siegeWave = d.siegeWave || 0;
     if (d.settings) Object.assign(g.settings, d.settings);
     g.fort.recompute();
