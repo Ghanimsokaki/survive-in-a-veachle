@@ -119,7 +119,7 @@ export class Enterprise {
 
 // ------------------------------------------------------------------ palettes
 // Each refit looks different on screen — that is the "cinematic tier" promise.
-const HULL_TONES = ['#c9d3dd', '#d8dde4', '#b9c2cc', '#9aa4ae', '#8b95a1'];
+const HULL_TONES = ['#d3dce5', '#e0e5ec', '#c7d0da', '#b2bcc7', '#9faab6'];
 const ACCENTS = ['#f6c453', '#f6c453', '#e0e7ef', '#cfd6de', '#ff5b6e'];
 const NACELLE_GLOW = ['#57c7ff', '#57c7ff', '#7c5bff', '#ff4d6d', '#7cf0ff'];
 const NACELLE_CORE = ['#dff3ff', '#dff3ff', '#e6dcff', '#ffe1e6', '#e8ffff'];
