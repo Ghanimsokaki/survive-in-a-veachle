@@ -396,6 +396,68 @@ key('Escape'); await frames();
   assert(errors.length === 0, 'the camera and photo layer raise no errors');
 }
 
+// photo contracts: framing a subject and shooting it pays credits
+{
+  const live = () => window.__skyuss.game;
+  const g = live();
+  g.pos = { x: g.fort.x + 600, y: 60, z: g.fort.z + 600 };
+  await frames();
+  key('KeyG');                                  // free camera
+  await frames();
+  // point the camera at the fortress, which is always there to shoot
+  window.__skyuss.free.pos = { x: g.fort.x + 120, y: 70, z: g.fort.z + 260 };
+  window.__skyuss.free.yaw = Math.atan2(g.fort.x - window.__skyuss.free.pos.x, g.fort.z - window.__skyuss.free.pos.z);
+  window.__skyuss.free.pitch = -0.1;
+  await frames();
+  const framed = window.__skyuss.frameSubjects();
+  assert(Array.isArray(framed) && framed.includes('fort'), 'the fortress is inside the frame');
+  const cash0 = live().credits;
+  const shot = live().claimPhoto(framed);
+  assert(shot.paid > 0 && live().credits > cash0, `a new shot pays credits (+${shot.paid})`);
+  assert(live().claimPhoto(framed).paid === 0, 'the same subject does not pay twice');
+  key('KeyG');
+  await frames();
+}
+
+// the shipyard panel: earn, buy, fly
+{
+  const live = () => window.__skyuss.game;
+  key('KeyY');
+  await frames();
+  const yard = document.getElementById('panelYard');
+  assert(yard && !yard.classList.contains('hidden'), 'Y opens the shipyard');
+  const balance = () => document.getElementById('yardCredits').textContent.trim();
+  assert(balance() === String(live().credits), 'the panel shows your balance');
+
+  const buttons = () => [...document.querySelectorAll('#yardShips button')];
+  const buyBtn = () => buttons().find((b) => (b.dataset.action || '') === 'buyship');
+  assert(!!buyBtn(), 'the Aurora is on sale');
+  assert(buyBtn().disabled && live().credits < 4500, 'it is locked until you can afford it');
+
+  live().credits = 5000;
+  window.__skyuss.refreshYard();
+  await frames();
+  assert(!buyBtn().disabled, 'enough credits unlock the buy button');
+  buyBtn().dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true }));
+  await frames();
+  assert(live().owned.aurora, 'clicking buy puts the Aurora in the hangar');
+  assert(live().credits === 500, 'the price came out of the wallet');
+
+  const flyBtn = buttons().find((b) => (b.dataset.action || '') === 'useship');
+  assert(!!flyBtn, 'a bought hull offers FLY IT');
+  flyBtn.dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true }));
+  await frames();
+  assert(live().hullId === 'aurora', 'flying it switches the hull');
+  assert(balance() === String(live().credits), 'the panel re-reads the balance after a purchase');
+
+  const board = document.getElementById('yardContracts');
+  assert(board.innerHTML.includes('Photo contracts') || board.textContent.length > 20, 'the photo contract board renders');
+  key('Escape');
+  await frames();
+  assert(yard.classList.contains('hidden'), 'Escape closes the shipyard');
+  assert(errors.length === 0, 'the economy layer raises no errors');
+}
+
 // a few more simulated seconds with combat noise
 await frames();
 assert(drew > 150, `the loop keeps rendering (${drew} draw calls)`);

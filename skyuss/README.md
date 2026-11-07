@@ -34,6 +34,10 @@ Everything is static: no bundler, no build step, and **Three.js r170 is vendored
    shield pylons, SAM batteries, refineries and matrix condensers.
 6. **Defend.** Ambient pirates harass you; a **siege fleet** hits the fortress every ~3 minutes.
    Lose it and half your stores burn.
+7. **Photograph and sell.** Press `G` for the free camera, frame something the log has never
+   seen, press `T`. The frame is written to your downloads *and* the photo contract pays
+   credits. Credits buy hulls in the shipyard (`Y`) — the first one on the shelf is the
+   **Aurora-class courier**.
 
 ## The open world
 
@@ -91,6 +95,57 @@ rebuilt from the tier array, so every refit looks different.
 `js/enterprise.js` has no WebGL dependency — geometry and materials are built as plain
 objects, which is why the headless test can assert on the actual mesh ("refit widens the
 hull", "two nacelles are modelled", "more warp coils on higher nacelles").
+
+## Credits, the shipyard and photo contracts
+
+Two economies, deliberately separate:
+
+- **Fortress stores** (`Ti` / `Di` / matrix) pay for refits and fortress pieces. You haul them
+  home in the cargo hold.
+- **Credits** (`¢`) are the shipyard currency and are *never* granted — only earned in flight.
+
+Three ways credits arrive:
+
+| Source | Payout |
+| --- | --- |
+| Skiff / raider / siege / dread bounty | 40 / 75 / 120 / 300 ¢ |
+| Photo contract on a new subject | 60–400 ¢ (see below) |
+| Second shot of the same subject | nothing — the desk already has it |
+
+**Photo contracts.** Every island, derelict, storm, hostile, the fortress itself and your own
+bought ship is a subject with a payout. `js/sim.js` knows what exists in the world
+(`photoSubjects()`); the renderer decides what is *actually in frame* by projecting each one
+through the camera (`framedSubjects()` in `js/main.js`); the sim pays out through
+`claimPhoto(ids)` and remembers the shot in the save file. That split keeps the whole economy
+testable headlessly.
+
+**The shipyard (`Y`)** lists the hulls you own and the ones you can afford. The
+**Aurora-class courier** costs 4,500 ¢: 28% faster, 22% nimbler, 15% faster guns, 18% thinner
+hull. Refits stack on top of it — the hull class multiplies the airframe, the refit tree is
+unchanged.
+
+### The Aurora model
+
+`js/aurora.js` builds the courier procedurally (lathed fuselage, forward-swept prongs, canopy,
+twin nacelles with exhaust discs, dorsal fin, lit windows, mine-red / starboard-green running
+lights, shield bubble) and exposes the same `userData.parts` contract as the Enterprise, so the
+renderer animates both with one code path.
+
+![the Aurora-class courier](shots/aurora-preview.png)
+
+It is modelled after the free TurboSquid *"Avrora" Sci-Fi Spaceship*
+([product 1577480](https://www.turbosquid.com/3d-models/space-spaceship-sci-fi-3d-1577480),
+TurboSquid Royalty Free licence). That licence lets a bought model ship **inside** a game but
+not the model file itself, so the real mesh is a drop-in that never enters this repo:
+
+1. download the Avrora and keep the **OBJ**;
+2. save it as `skyuss/assets/premium/avrora.obj` (the folder is git-ignored on purpose);
+3. buy the courier in the shipyard.
+
+`js/premium.js` parses the OBJ (fan-triangulated quads, negative indices, no dependencies),
+centres and scales it to ~30 m and calls `setPremium()` — the placeholder hull hides, the
+engine glows, running lights and shield bubble stay. With no file present the procedural hull
+flies instead, so the game is never broken and no licence is involved.
 
 ## The sky fortress
 
@@ -216,7 +271,7 @@ skyuss/
   js/main.js          renderer, cloud sea, camera rig, input, scene sync, VFX
   js/audio.js         synthesised WebAudio (no assets)
   js/touch.js         thumb-stick / look-pad / action buttons for phones
-tools/skyuss-smoke.mjs   headless test: 225 assertions, no GPU required
+tools/skyuss-smoke.mjs   headless test: 265 assertions, no GPU required
 ```
 
 The split is deliberate: **`sim.js` never imports Three.js and `main.js` never owns game
@@ -238,8 +293,8 @@ Useful because jsdom has no WebGL: this is how the hull proportions get reviewed
 ## Tests
 
 ```bash
-npm run smoke:skyuss        # 225 assertions: sim + streaming + meshes, no GPU
-npm run smoke:skyuss:boot   # 41 assertions: boots the real renderer headlessly
+npm run smoke:skyuss        # 265 assertions: sim + streaming + meshes, no GPU
+npm run smoke:skyuss:boot   # 82 assertions: boots the real renderer headlessly
 npm run check               # syntax-check both games
 npm run test:all            # every suite in this repo
 ```
@@ -274,7 +329,8 @@ That is 300k+ stub draw calls of coverage without a GPU.
 | `Shift` | impulse boost |
 | `F` | warp jump home to the fortress (dash if already there) |
 | right-drag / wheel | orbit / zoom the camera |
-| `G` | free camera (sim paused) · `T` photo → PNG download |
+| `G` | free camera (sim paused) · `T` photo → pays a contract + PNG download |
+| `Y` | shipyard & photo desk — buy hulls with credits |
 | `LMB` hold | phasers · `RMB` click photon torpedo |
 | `E` | strip derelict · survey island · deposit at the fortress |
 | `B` | fortress build mode |

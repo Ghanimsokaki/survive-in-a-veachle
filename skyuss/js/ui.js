@@ -2,7 +2,7 @@
 // Pure DOM — no Three.js here.
 
 import { tierRows } from './enterprise.js';
-import { FORT, FORT_PIECES, PIECE_ORDER } from './config.js';
+import { FORT, FORT_PIECES, PIECE_ORDER, SHIPYARD } from './config.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -25,7 +25,8 @@ export const UI = {
       shieldFill: $('shieldFill'), shieldText: $('shieldText'),
       energyFill: $('energyFill'), energyText: $('energyText'),
       speedText: $('speedText'), warpLine: $('warpLine'),
-      resTi: $('resTi'), resDi: $('resDi'), resMx: $('resMx'),
+      resTi: $('resTi'), resDi: $('resDi'), resMx: $('resMx'), resCr: $('resCr'),
+      yardCredits: $('yardCredits'), yardShips: $('yardShips'), yardContracts: $('yardContracts'),
       cargoFill: $('cargoFill'), cargoText: $('cargoText'),
       lockRing: $('lockRing'), abyssWarn: $('abyssWarn'), reticle: $('reticle'),
       radar: $('radar'), tierRows: $('tierRows'), pieceGrid: $('pieceGrid'), fortStats: $('fortStats'),
@@ -50,6 +51,8 @@ export const UI = {
         else if (a === 'style') handlers.style && handlers.style();
         else if (a === 'aim') handlers.aim && handlers.aim();
         else if (a === 'touch') handlers.touch && handlers.touch();
+        else if (a === 'buyship') handlers.buyShip && handlers.buyShip(act.dataset.id);
+        else if (a === 'useship') handlers.useShip && handlers.useShip(act.dataset.id);
       }
     });
 
@@ -124,12 +127,14 @@ export const UI = {
   },
 
   openTiers(game) { this.open('tiers'); this.refreshTiers(game); },
+  openYard(game) { this.open('yard'); this.refreshYard(game); },
   openBuild(game) { this.open('build'); this.refreshBuild(game); },
   openHelp() { this.open('help'); },
   toggle(name, game) {
     if (this.panel === name) this.close();
     else if (name === 'tiers') this.openTiers(game);
     else if (name === 'build') this.openBuild(game);
+    else if (name === 'yard') this.openYard(game);
     else this.openHelp();
   },
 
@@ -205,6 +210,32 @@ export const UI = {
       <span>Mining <b>${(f.yields.titanium || 0).toFixed(1)} Ti/s</b></span>`;
   },
 
+  refreshYard(game) {
+    if (!game) return;
+    this.el.yardCredits.textContent = game.credits;
+    this.el.yardShips.innerHTML = SHIPYARD.ships.map((def) => {
+      const owned = !!game.owned[def.id];
+      const current = game.hullId === def.id;
+      const afford = game.credits >= def.price;
+      let btn;
+      if (current) btn = '<button disabled>FLYING</button>';
+      else if (owned) btn = `<button data-action="useship" data-id="${def.id}">FLY IT</button>`;
+      else btn = `<button data-action="buyship" data-id="${def.id}" ${afford ? '' : 'disabled'}>BUY ${def.price} ¢</button>`;
+      return `<div class="yard-ship ${current ? 'current' : ''}">
+        <b>🚀 ${def.name}${owned ? '' : ' · locked'}</b>
+        <small>${def.blurb} &nbsp;speed ${def.stats.speed} · hull ${def.stats.hull} · turn ${def.stats.turn}</small>
+        ${btn}
+      </div>`;
+    }).join('');
+    const board = game.photoBoard();
+    this.el.yardContracts.innerHTML = board.rows.map((r) => `
+      <div class="row">
+        <span>${r.shots > 0 ? '<span class="done">✓</span>' : '○'} ${r.label}</span>
+        <span><b>${r.pay} ¢</b> each · ${r.shots} shot${r.shots === 1 ? '' : 's'}</span>
+      </div>`).join('')
+      + `<div class="row"><span>Contract earnings</span><span><b>${board.earned} ¢</b> from ${board.total} shots</span></div>`;
+  },
+
   flash() {
     const el = this.el.dmgFlash;
     if (!el) return;
@@ -253,6 +284,7 @@ export const UI = {
     set('ti', Math.floor(game.bank.titanium), (v) => { this.el.resTi.textContent = v; });
     set('di', Math.floor(game.bank.dilithium), (v) => { this.el.resDi.textContent = v; });
     set('mx', Math.floor(game.bank.matrix), (v) => { this.el.resMx.textContent = v; });
+    set('cr', Math.round(game.credits), (v) => { if (this.el.resCr) this.el.resCr.textContent = v; });
     set('cargo', Math.round(game.cargoTotal), () => {
       this.el.cargoFill.style.width = Math.min(100, (game.cargoTotal / game.cargoMax) * 100) + '%';
       this.el.cargoText.textContent = `${Math.round(game.cargoTotal)}/${game.cargoMax}`;

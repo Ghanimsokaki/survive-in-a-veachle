@@ -4,6 +4,9 @@
 import * as THREE from '../vendor/three.module.js';
 import { SkyGame } from './sim.js';
 import { buildEnterprise } from './enterprise.js';
+import { buildAurora } from './aurora.js';
+import { loadPremium } from './premium.js';
+import { PHOTO_CONTRACTS } from './config.js';
 import { buildFort, buildFortGrid } from './fort.js';
 import { buildIsland, buildDerelict, buildStorm, buildHomeBeacon } from './world.js';
 import { UI } from './ui.js';
@@ -386,9 +389,27 @@ function disposeGroup(obj) {
 // ------------------------------------------------------------------ the ship
 function rebuildShipMesh() {
   if (shipMesh) disposeGroup(shipMesh);
-  shipMesh = buildEnterprise(THREE, game.ship);
+  const aurora = game.hullId === 'aurora';
+  shipMesh = aurora ? buildAurora(THREE, game.ship) : buildEnterprise(THREE, game.ship);
   scene.add(shipMesh);
-  shipSig = JSON.stringify(game.ship.tiers);
+  shipSig = JSON.stringify(game.ship.toJSON ? game.ship.toJSON() : game.ship.tiers);
+  if (aurora) adoptPremiumHull();
+}
+
+/**
+ * If the player bought the TurboSquid hull and dropped the OBJ into
+ * skyuss/assets/premium/, fly the real mesh instead of the placeholder.
+ */
+let premiumTried = false;
+function adoptPremiumHull() {
+  if (premiumTried || !shipMesh || !shipMesh.userData.setPremium) return;
+  premiumTried = true;
+  loadPremium(THREE).then((found) => {
+    if (!found || !shipMesh || !shipMesh.userData.setPremium) return;
+    shipMesh.userData.setPremium(found.mesh, { length: 30 });
+    UI.toast('🛠️ Bought hull loaded: ' + found.source, 'good');
+    console.info('[skyuss] premium hull', found.source, found.triangles, 'triangles');
+  }).catch(() => { /* stand-in hull keeps flying */ });
 }
 
 function rebuildFort() {
@@ -559,6 +580,21 @@ UI.init({
     }
     UI.refreshTiers(game);
   },
+  buyShip: (id) => {
+    const res = game.buyShip(id);
+    UI.toast(res.ok ? `🛠️ ${res.ship.name} bought` : `Cannot buy: ${res.reason}`, res.ok ? 'good' : 'bad');
+    if (res.ok) persist();
+    UI.refreshYard(game);
+  },
+  useShip: (id) => {
+    const res = game.useShip(id);
+    if (res.ok) {
+      rebuildShipMesh();
+      UI.toast('Now flying the ' + game.shipDef(id).name, 'good');
+      persist();
+    }
+    UI.refreshYard(game);
+  },
   onPiece: () => {},
   onOpen: (name) => {
     if (name === 'build') enterBuild();
@@ -677,6 +713,7 @@ window.addEventListener('keydown', (e) => {
   else if (free) { /* WASD/QE/drag are read by syncFreeCamera */ }
   else if (k === 'KeyB') { toggleBuild(); e.preventDefault(); }
   else if (k === 'KeyU') { UI.toggle('tiers', game); e.preventDefault(); }
+  else if (k === 'KeyY') { UI.toggle('yard', game); e.preventDefault(); }
   else if (k === 'KeyH') { UI.toggle('help', game); e.preventDefault(); }
   else if (k === 'KeyF') { if (game.warp().ok) state.shake = 0.5; }
   else if (k === 'KeyE') doInteract();
@@ -909,10 +946,29 @@ function syncFreeCamera(dt) {
   camera.updateProjectionMatrix();
 }
 
+/** Which photo subjects are actually inside the frame right now. */
+function framedSubjects() {
+  if (!game) return [];
+  const ids = [];
+  const v = new THREE.Vector3();
+  for (const s of game.photoSubjects()) {
+    const cfg = PHOTO_CONTRACTS[s.kind] || {};
+    const range = cfg.range || 700;
+    const d = Math.hypot(s.x - camera.position.x, s.y - camera.position.y, s.z - camera.position.z);
+    if (d > range + (s.r || 0)) continue;
+    v.set(s.x, s.y, s.z).project(camera);
+    if (v.z > 1 || Math.abs(v.x) > 1 || Math.abs(v.y) > 1) continue;
+    ids.push(s.id);
+  }
+  return ids;
+}
+
 /** Render one frame and hand the PNG to the browser as a download. */
 function takePhoto() {
   try {
     renderer.render(scene, camera);
+    const shot = game ? game.claimPhoto(framedSubjects()) : { paid: 0, fresh: [] };
+    if (game && !shot.paid) UI.toast('📷 Photo saved — nothing new in frame', '');
     const url = canvas.toDataURL('image/png');
     const a = document.createElement('a');
     a.href = url;
@@ -1023,6 +1079,7 @@ function syncShip(dt) {
   const parts = shipMesh.userData.parts;
   const pulse = 1 + Math.sin(game.t * 6) * 0.07 + (game.boost || 0) * 0.25;
   for (const nac of parts.nacelles) {
+    if (!nac.bussard) continue;                    // the courier has plain nacelles
     nac.bussard.scale.setScalar(pulse);
     for (const m of nac.coils) m.material.opacity = 0.75 + Math.sin(game.t * 5 + m.position.z) * 0.2;
   }
@@ -1033,6 +1090,7 @@ function syncShip(dt) {
   for (const ex of parts.exhaust || []) ex.material.opacity = 0.55 + throttle * 0.4;
   for (const port of parts.impulse || []) port.visible = Math.sin(game.t * 7 + port.position.x * 3) > -0.55;
   for (const light of parts.runningLights || []) {
+    if (!light.mesh) { light.visible = Math.sin(game.t * 5 + light.position.z) > -0.3; continue; }
     const t2 = (game.t / light.period + light.phase) % 1;
     light.mesh.visible = t2 < 0.5;
   }
@@ -1229,7 +1287,7 @@ function loop() {
       else UI.toast(ev.text, ev.type === 'good' ? 'good' : ev.type === 'bad' ? 'bad' : ev.type === 'warn' ? 'warn' : '');
     }
     // keep the ship/frotress meshes in sync with the tiers
-    if (JSON.stringify(game.ship.tiers) !== shipSig) rebuildShipMesh();
+    if (JSON.stringify({ tiers: game.ship.tiers, hull: game.hullId }) !== shipSig) rebuildShipMesh();
     saveTimer += dt;
     if (saveTimer > 15) { saveTimer = 0; persist(); }
     consumeEffects();
@@ -1279,6 +1337,8 @@ window.__skyuss = {
   start: (resume) => startGame(resume),
   rebuildShip: () => rebuildShipMesh(),
   rebuildFort: () => rebuildFort(),
+  frameSubjects: () => framedSubjects(),
+  refreshYard: () => UI.refreshYard(game),
   toggleCamera: () => toggleCameraMode(),
   takePhoto: () => takePhoto(),
   get worldCells() { return worldCells; },

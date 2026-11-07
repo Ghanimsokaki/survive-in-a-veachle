@@ -3,3 +3,7 @@ shots/
 .DS_Store
 *.log
 image-search/
+
+# the bought TurboSquid hull lives here, never in git (licence forbids redistribution)
+skyuss/assets/premium/*
+!skyuss/assets/premium/README.md

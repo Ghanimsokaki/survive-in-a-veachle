@@ -12,9 +12,11 @@ export const COMPONENTS = ['saucer', 'nacelles', 'deflector', 'weapons'];
 export const MAX_TIER = 4;
 
 export class Enterprise {
-  constructor(tiers) {
+  constructor(tiers, opts = {}) {
     this.tiers = { saucer: 0, nacelles: 0, deflector: 0, weapons: 0 };
     if (tiers) Object.assign(this.tiers, tiers);
+    // hull class bought in the shipyard; refits apply on top of it
+    this.hullClass = opts.hullClass || 'enterprise';
     this.stats = {};
     this.recompute();
   }
@@ -108,13 +110,20 @@ export class Enterprise {
       dishScale: 1 + this.tiers.deflector * 0.13,
       refit: this.tiers.saucer + this.tiers.nacelles + this.tiers.deflector + this.tiers.weapons,
     };
+    // the bought hull changes the airframe under the same refit tree
+    if (this.hullClass === 'aurora') {
+      this.stats.maxSpeed *= 1.28;
+      this.stats.turnRate *= 1.22;
+      this.stats.fireRate *= 1.15;
+      this.stats.hull = Math.round(this.stats.hull * 0.82);
+    }
     return this.stats;
   }
 
   totalTier() { return COMPONENTS.reduce((n, c) => n + this.tiers[c], 0); }
 
-  toJSON() { return { tiers: { ...this.tiers } }; }
-  static fromJSON(d) { return new Enterprise(d && d.tiers); }
+  toJSON() { return { tiers: { ...this.tiers }, hullClass: this.hullClass }; }
+  static fromJSON(d) { return new Enterprise(d && d.tiers, { hullClass: d && d.hullClass }); }
 }
 
 // ------------------------------------------------------------------ palettes

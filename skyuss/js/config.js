@@ -167,3 +167,45 @@ export const SCAVENGE = {
   islandRange: 60,
   islandLoot: { titanium: [20, 60], dilithium: [8, 30] },
 };
+
+/* ---------------------------------------------------------------- economy */
+
+/**
+ * Credits are the shipyard currency — they only come from flying the world:
+ * bounties for hostiles and, mostly, **photo contracts** for framing things
+ * nobody has photographed yet. Fortress stores stay separate.
+ */
+export const CREDITS = {
+  start: 250,
+  kill: { skiff: 40, raider: 75, siege: 120, dread: 300 },
+};
+
+/** Every subject kind you can sell a photo of, and what the first shot pays. */
+export const PHOTO_CONTRACTS = {
+  island:   { label: 'Floating island',   pay: 60,  range: 900 },
+  derelict: { label: 'Derelict hulk',     pay: 90,  range: 800 },
+  storm:    { label: 'Ion storm',         pay: 180, range: 900 },
+  fortress: { label: 'Your own fortress', pay: 120, range: 700 },
+  pirate:   { label: 'Hostile in flight', pay: 140, range: 600 },
+  aurora:   { label: 'The Aurora',        pay: 400, range: 700 },
+};
+
+/** What the yard sells. The Aurora is the TurboSquid "Avrora" hull. */
+export const SHIPYARD = {
+  ships: [
+    {
+      id: 'enterprise',
+      name: 'Constitution-class',
+      price: 0,
+      blurb: 'The saucer you start with — tough, roomy, slow.',
+      stats: { speed: '×1.00', hull: '×1.00', turn: '×1.00' },
+    },
+    {
+      id: 'aurora',
+      name: 'Aurora-class courier',
+      price: 4500,
+      blurb: 'Sleek long-range courier. Fragile, quick, and worth photographing.',
+      stats: { speed: '×1.28', hull: '×0.82', turn: '×1.22' },
+    },
+  ],
+};

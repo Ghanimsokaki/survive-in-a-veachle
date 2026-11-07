@@ -6,7 +6,9 @@ import { Enterprise, buildEnterprise, tierRows, COMPONENTS, MAX_TIER } from '../
 import { SkyFort, buildFort, buildFortGrid } from '../skyuss/js/fort.js';
 import { SkyGame } from '../skyuss/js/sim.js';
 import { generateWorld, generateCell, WorldStream, buildIsland, buildDerelict, buildStorm, buildHomeBeacon } from '../skyuss/js/world.js';
-import { FORT, FORT_PIECES, SHIP_UPGRADES, WORLD } from '../skyuss/js/config.js';
+import { FORT, FORT_PIECES, SHIP_UPGRADES, WORLD, CREDITS, PHOTO_CONTRACTS, SHIPYARD } from '../skyuss/js/config.js';
+import { buildAurora } from '../skyuss/js/aurora.js';
+import { parseOBJ, objMesh } from '../skyuss/js/premium.js';
 
 const errors = [];
 const assert = (cond, msg) => {
@@ -572,6 +574,107 @@ if (!g.pickups.length) {
 }
 
 // --------------------------------------------------- feedback: fx + audio
+section('shipyard, credits and photo contracts');
+{
+  const g = new SkyGame({ seed: 44 });
+  g.screen = 'playing';
+  assert(g.credits === CREDITS.start, `you start with ${CREDITS.start} credits`);
+
+  // bounties
+  const before = g.credits;
+  const f = g.forward;
+  const prey = g.spawnEnemy('skiff', { x: g.pos.x + f.x * 200, y: g.pos.y, z: g.pos.z + f.z * 200 });
+  let guard = 0;
+  while (prey.hp > 0 && guard++ < 400) { g.energy = 100; g.update(1 / 60, { fire: true }); }
+  assert(g.credits === before + CREDITS.kill.skiff, 'a kill pays its bounty in credits');
+
+  // what is out there to photograph
+  const subjects = g.photoSubjects();
+  const kinds = new Set(subjects.map((s) => s.kind));
+  assert(kinds.has('island') && kinds.has('derelict') || kinds.has('storm'), 'the world offers photo subjects');
+  assert(kinds.has('fortress'), 'your own fortress is a subject');
+  assert(subjects.every((s) => s.pay === PHOTO_CONTRACTS[s.kind].pay), 'every subject carries its contract payout');
+  assert(!kinds.has('aurora'), 'the Aurora is not a subject until you own it');
+
+  // a shot pays once
+  const pick = subjects.filter((s) => s.kind === 'island').slice(0, 2);
+  const cash0 = g.credits;
+  const first = g.claimPhoto(pick.map((s) => s.id));
+  assert(first.paid === pick.length * PHOTO_CONTRACTS.island.pay, 'new subjects pay their contract');
+  assert(g.credits === cash0 + first.paid, 'the credits land in the wallet');
+  const again = g.claimPhoto(pick.map((s) => s.id));
+  assert(again.paid === 0 && again.fresh.length === 0, 'a subject only pays once');
+  assert(g.claimPhoto(['nope:1:2', null, undefined]).paid === 0, 'junk ids are ignored');
+
+  const board = g.photoBoard();
+  assert(board.rows.length === Object.keys(PHOTO_CONTRACTS).length, 'the contract board lists every kind');
+  assert(board.total === 2 && board.earned === first.paid, 'the board counts shots and earnings');
+
+  // buying
+  const poor = new SkyGame({ seed: 45 });
+  const deny = poor.buyShip('aurora');
+  assert(!deny.ok && /credits/.test(deny.reason), 'you cannot buy a hull you cannot afford');
+  assert(!poor.useShip('aurora').ok, 'you cannot fly a hull you do not own');
+
+  const speed0 = g.ship.stats.maxSpeed;
+  g.credits = SHIPYARD.ships.find((x) => x.id === 'aurora').price + 100;
+  const buy = g.buyShip('aurora');
+  assert(buy.ok && g.owned.aurora, 'credits buy the Aurora');
+  assert(g.credits === 100, 'the price is deducted');
+  assert(!g.buyShip('aurora').ok, 'you cannot buy the same hull twice');
+
+  const use = g.useShip('aurora');
+  assert(use.ok && g.hullId === 'aurora', 'the bought hull becomes the active one');
+  assert(Math.abs(g.ship.stats.maxSpeed - speed0 * 1.28) < 0.01, 'the courier flies 28% faster');
+  assert(g.ship.stats.hull < 400, 'and carries a thinner hull');
+  assert(g.photoSubjects().some((s) => s.kind === 'aurora'), 'now your own ship is a photo subject');
+
+  // refits keep the hull bonus
+  const hullAurora = g.ship.stats.hull;
+  g.bank = { titanium: 9e4, dilithium: 9e4, matrix: 99 };
+  g.upgrade('saucer');
+  assert(g.ship.hullClass === 'aurora' && g.ship.stats.hull > hullAurora, 'refits stack on top of the bought hull');
+
+  // it survives a save
+  const round = SkyGame.fromJSON(JSON.parse(JSON.stringify(g.toJSON())));
+  assert(round.credits === g.credits && round.hullId === 'aurora', 'credits and hull survive a save');
+  assert(Object.keys(round.photos).length === Object.keys(g.photos).length, 'the photo log survives a save');
+  assert(round.owned.aurora, 'the hangar survives a save');
+}
+
+section('the Aurora mesh and the bought-hull loader');
+{
+  const ship = new Enterprise({ saucer: 2, nacelles: 2, deflector: 2, weapons: 2 }, { hullClass: 'aurora' });
+  const mesh = buildAurora(THREE, ship);
+  let count = 0;
+  mesh.traverse((o) => { if (o.isMesh) count++; });
+  const parts = mesh.userData.parts;
+  assert(mesh.name === 'aurora' && count >= 15, `the courier is modelled (${count} meshes)`);
+  assert(parts.nacelles.length === 2 && parts.exhaust.length === 2, 'twin nacelles with exhaust glow');
+  assert(parts.grilles.length === 2 && parts.impulse.length === 2, 'grilles and impulse ports');
+  assert(parts.runningLights.length >= 4 && parts.lights.length === 14, 'running lights and lit windows');
+  assert(!!parts.shieldBubble && !parts.shieldBubble.visible, 'a shield bubble waits for shields');
+  assert(mesh.userData.hull === 'aurora', 'the mesh reports its hull class');
+
+  // the OBJ drop-in slot
+  const cube = [
+    'o hull', 'v -1 -1 -1', 'v 1 -1 -1', 'v 1 1 -1', 'v -1 1 -1',
+    'v -1 -1 1', 'v 1 -1 1', 'v 1 1 1', 'v -1 1 1',
+    'f 1 4 3 2', 'f 5 6 7 8', 'f 1 2 6 5', 'f 2 3 7 6', 'f 3 4 8 7', 'f 4 1 5 8',
+  ].join('\n');
+  const data = parseOBJ(cube);
+  assert(!!data && data.triangles === 12, 'the OBJ reader triangulates quads (12 tris from 6 quads)');
+  assert(data.vertices === 8, 'and counts the vertices');
+  const neg = parseOBJ('v 0 0 0\nv 1 0 0\nv 0 1 0\nf -3 -2 -1\n');
+  assert(!!neg && neg.triangles === 1, 'negative face indices resolve');
+  assert(parseOBJ('v 0 0 0\n') === null, 'a file with no faces is rejected instead of crashing');
+
+  const swapped = mesh.userData.setPremium(objMesh(THREE, data), { length: 30 });
+  assert(swapped === true && mesh.userData.premium === true, 'a bought mesh can replace the placeholder');
+  const hud = mesh.children.find((c) => c.name === 'aurora-hull');
+  assert(!hud.visible, 'the placeholder hull hides behind the bought mesh');
+}
+
 section('effects bus + audio module');
 {
   const { SkyAudio } = await import('../skyuss/js/audio.js');

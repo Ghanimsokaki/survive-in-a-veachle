@@ -5,7 +5,7 @@
 import { Enterprise } from './enterprise.js';
 import { SkyFort } from './fort.js';
 import { WorldStream, generateWorld, nearestDerelict, nearestIsland, stormAt } from './world.js';
-import { WORLD, PIRATE_TYPES, SIEGE, SCAVENGE, FORT } from './config.js';
+import { WORLD, PIRATE_TYPES, SIEGE, SCAVENGE, FORT, CREDITS, PHOTO_CONTRACTS, SHIPYARD } from './config.js';
 
 // cost of a warp jump home
 const WARP = { cost: 25 };
@@ -71,6 +71,11 @@ export class SkyGame {
     // monotonic counters: the renderer diffs these to fire audio + particles
     this.fx = { shots: 0, torps: 0, kills: 0, hits: 0, warps: 0, builds: 0, loot: 0, alarms: 0 };
     this.lockHold = 0;
+    // shipyard economy: credits are earned in the world, never granted
+    this.credits = CREDITS.start;
+    this.owned = { enterprise: true };
+    this.hullId = 'enterprise';
+    this.photos = {};                 // subject id -> { kind, pay, at }
     this.siegeTimer = SIEGE.firstAt;
     this.pirateTimer = 26;
     this.siegeWave = 0;
@@ -735,6 +740,7 @@ export class SkyGame {
   killEnemy(e) {
     this.stats.kills += 1;
     this.fx.kills += 1;
+    this.earn(CREDITS.kill[e.type] || 30, `${e.def.name} bounty`);
     this.fxBurst('boom', e.pos.x, e.pos.y, e.pos.z, e.def.size, 1.1);
     e.fade = 0.6;
     const bounty = e.def.bounty;
@@ -836,6 +842,109 @@ export class SkyGame {
     return 'Scavenge derelicts, bank the salvage at the fort, upgrade the Enterprise.';
   }
 
+  // ------------------------------------------------------------- economy
+  /** Pay credits and shout about it. */
+  earn(amount, label) {
+    const n = Math.round(amount);
+    if (!(n > 0)) return 0;
+    this.credits += n;
+    this.fx.credits = (this.fx.credits || 0) + n;
+    if (label) this.emit('good', `+${n} ¢ — ${label}`);
+    return n;
+  }
+
+  /**
+   * Everything in the world worth photographing, in world space. The renderer
+   * decides which of these are actually in frame; the sim only knows what exists.
+   */
+  photoSubjects() {
+    const out = [];
+    const w = this.world || { islands: [], derelicts: [], storms: [] };
+    for (const i of w.islands || []) {
+      out.push({ id: i.id, kind: 'island', label: `${i.name} island`, x: i.x, y: i.y, z: i.z, r: i.r || 30 });
+    }
+    for (const d of w.derelicts || []) {
+      out.push({ id: d.id, kind: 'derelict', label: `${d.name} wreck`, x: d.x, y: d.y, z: d.z, r: 26 * (d.scale || 1) });
+    }
+    for (const st of w.storms || []) {
+      out.push({ id: st.id, kind: 'storm', label: 'ion storm', x: st.x, y: st.y, z: st.z, r: st.r || 70 });
+    }
+    out.push({ id: 'fort', kind: 'fortress', label: 'your fortress', x: this.fort.x, y: this.fort.y + 12, z: this.fort.z, r: 70 });
+    for (const e of this.enemies) {
+      if (e.hp <= 0) continue;
+      out.push({ id: `p:${e.id}`, kind: 'pirate', label: e.def.name, x: e.pos.x, y: e.pos.y, z: e.pos.z, r: 8 + e.def.size * 6 });
+    }
+    if (this.hullId === 'aurora') {
+      out.push({ id: 'aurora', kind: 'aurora', label: 'the Aurora', x: this.pos.x, y: this.pos.y, z: this.pos.z, r: 16 });
+    }
+    for (const s of out) s.pay = (PHOTO_CONTRACTS[s.kind] || {}).pay || 0;
+    return out;
+  }
+
+  /**
+   * Hand in a frame: `ids` are the subjects the camera could actually see.
+   * Each subject pays once, so flying further out is what earns.
+   */
+  claimPhoto(ids = []) {
+    const byId = new Map();
+    for (const s of this.photoSubjects()) byId.set(s.id, s);
+    const fresh = [];
+    let paid = 0;
+    for (const id of ids) {
+      if (!id || this.photos[id]) continue;
+      const s = byId.get(id);
+      if (!s) continue;
+      this.photos[id] = { kind: s.kind, pay: s.pay, label: s.label, at: Math.round(this.t) };
+      fresh.push({ id, kind: s.kind, label: s.label, pay: s.pay });
+      paid += s.pay;
+    }
+    if (paid > 0) {
+      this.credits += paid;
+      this.fx.credits = (this.fx.credits || 0) + paid;
+      this.fx.photos = (this.fx.photos || 0) + fresh.length;
+      this.stats.photos = (this.stats.photos || 0) + fresh.length;
+      this.emit('good', `📷 ${fresh.length} new shot${fresh.length > 1 ? 's' : ''} · +${paid} ¢`);
+    }
+    return { ok: true, paid, fresh, total: Object.keys(this.photos).length };
+  }
+
+  /** Contract board readout: kinds, payout and how many are already in the log. */
+  photoBoard() {
+    const rows = Object.entries(PHOTO_CONTRACTS).map(([kind, c]) => ({
+      kind, label: c.label, pay: c.pay,
+      shots: Object.values(this.photos).filter((p) => p.kind === kind).length,
+    }));
+    const earned = Object.values(this.photos).reduce((a, p) => a + p.pay, 0);
+    return { rows, total: Object.keys(this.photos).length, earned };
+  }
+
+  shipDef(id) { return SHIPYARD.ships.find((s) => s.id === id) || null; }
+
+  /** Buy a hull with credits. No real money, no IAP — only what you flew for. */
+  buyShip(id) {
+    const def = this.shipDef(id);
+    if (!def) return { ok: false, reason: 'unknown hull' };
+    if (this.owned[id]) return { ok: false, reason: 'already in the hangar' };
+    if (this.credits < def.price) return { ok: false, reason: `need ${def.price - this.credits} more credits` };
+    this.credits -= def.price;
+    this.owned[id] = true;
+    this.emit('good', `🛠️ ${def.name} bought — ${def.price} ¢`);
+    return { ok: true, ship: def, credits: this.credits };
+  }
+
+  /** Put a bought hull under you. */
+  useShip(id) {
+    if (!this.owned[id]) return { ok: false, reason: 'not in the hangar' };
+    if (this.hullId === id) return { ok: true, hullId: id };
+    this.hullId = id;
+    this.ship.hullClass = id;
+    this.ship.recompute();
+    this.hull = Math.min(this.hull, this.ship.stats.hull);
+    this.shields = this.ship.stats.maxShields;
+    this.emit('good', `Now flying the ${this.shipDef(id).name}.`);
+    return { ok: true, hullId: id };
+  }
+
   toJSON() {
     return {
       seed: this.seed,
@@ -851,6 +960,10 @@ export class SkyGame {
       discovered: [...this.discovered],
       siegeWave: this.siegeWave,
       settings: { ...this.settings },
+      credits: this.credits,
+      owned: { ...this.owned },
+      hullId: this.hullId,
+      photos: { ...this.photos },
     };
   }
 
@@ -874,6 +987,10 @@ export class SkyGame {
     g.world = g.stream.update(g.pos);
     g.siegeWave = d.siegeWave || 0;
     if (d.settings) Object.assign(g.settings, d.settings);
+    g.credits = Number.isFinite(d.credits) ? d.credits : g.credits;
+    if (d.owned) g.owned = { enterprise: true, ...d.owned };
+    g.photos = { ...(d.photos || {}) };
+    if (d.hullId && g.owned[d.hullId]) g.useShip(d.hullId);
     g.fort.recompute();
     return g;
   }

@@ -54,6 +54,7 @@
     <div class="res"><span>🟦</span><b id="resTi">0</b><i>Titanium</i></div>
     <div class="res"><span>🔷</span><b id="resDi">0</b><i>Dilithium</i></div>
     <div class="res"><span>💠</span><b id="resMx">0</b><i>Matrix</i></div>
+    <div class="res"><span>🪙</span><b id="resCr">250</b><i>Credits</i></div>
     <div class="cargo">
       <span>CARGO</span>
       <div class="cargo-track"><div id="cargoFill"></div></div>
@@ -123,6 +124,21 @@
     <p class="panel-note"><b>Click</b> a cell on the grid to build · <b>Right click</b> recycles · <b>1–8</b> picks a piece · <b>B</b> exits.</p>
   </div>
 
+  <div class="panel" id="panelYard">
+    <header>
+      <h2>🛠️ &nbsp;SHIPYARD &amp; PHOTO DESK</h2>
+      <button class="panel-close" data-action="close">✕</button>
+    </header>
+    <p class="panel-sub">Credits only come from flying: bounties on hostiles, and <b>photo contracts</b> for anything nobody has photographed yet.</p>
+    <div class="yard-credits">Balance <b id="yardCredits">0</b> ¢</div>
+    <div class="yard-ships" id="yardShips"></div>
+    <div class="yard-contracts">
+      <h3>📷 Photo contracts</h3>
+      <div id="yardContracts"></div>
+    </div>
+    <p class="panel-note"><b>G</b> free camera · <b>T</b> shoot &amp; sell the frame · <b>Y</b> closes. Buys are permanent and saved.</p>
+  </div>
+
   <div class="panel" id="panelHelp">
     <header>
       <h2>❔ &nbsp;FLIGHT MANUAL</h2>
@@ -153,7 +169,8 @@
         <h3>Live in the sky</h3>
         <ul>
           <li><b>E</b> strip a derelict / survey an island / deposit at the fort</li>
-          <li><b>G</b> free camera + <b>T</b> saves a screenshot of the frame</li>
+          <li><b>G</b> free camera + <b>T</b> shoots the frame: new subjects pay a photo contract</li>
+          <li><b>Y</b> shipyard: buy the Aurora-class courier with credits</li>
           <li><b>B</b> fortress build mode · <b>U</b> Enterprise refit</li>
           <li>Below the cloud line the <b>abyss</b> tears the hull apart</li>
           <li>Sieges hit the fortress every ~3 minutes</li>
@@ -177,7 +194,7 @@
       <li><kbd>Space</kbd><kbd>C</kbd> climb / dive</li>
       <li><kbd>LMB</kbd> phasers · <kbd>RMB</kbd> torpedo · <kbd>RMB drag</kbd> camera</li>
       <li><kbd>F</kbd> warp home · <kbd>E</kbd> tractor · <kbd>B</kbd> fortress · <kbd>U</kbd> refit</li>
-      <li><kbd>G</kbd> free camera · <kbd>T</kbd> photo</li>
+      <li><kbd>G</kbd> free camera · <kbd>T</kbd> photo · <kbd>Y</kbd> shipyard</li>
     </ul>
     <a class="back" href="../index.html">← back to Home on Wheels</a>
   </div>
