@@ -55,12 +55,21 @@ export class SkyGame {
     this.bolts = [];
     this.pickups = [];
     this.sparks = [];            // renderer-only particle hints
+    this.effects = [];           // {kind,x,y,z,size,life,maxLife} — pure data VFX
+    // monotonic counters: the renderer diffs these to fire audio + particles
+    this.fx = { shots: 0, torps: 0, kills: 0, hits: 0, warps: 0, builds: 0, loot: 0, alarms: 0 };
     this.siegeTimer = SIEGE.firstAt;
     this.pirateTimer = 26;
     this.siegeWave = 0;
     this.stats = { kills: 0, mined: 0, looted: 0, deposit: 0, deaths: 0, sieges: 0 };
     this.buildMode = false;
     this.enemySeq = 0;
+  }
+
+  /** Push a short-lived visual effect (rendered by main.js, faded here). */
+  fxBurst(kind, x, y, z, size = 1, life = 0.7) {
+    this.effects.push({ kind, x, y, z, size, life, maxLife: life });
+    if (this.effects.length > 90) this.effects.shift();
   }
 
   emit(type, text, extra = {}) {
@@ -102,9 +111,49 @@ export class SkyGame {
   // ----------------------------------------------------------------- building
   placePiece(ix, iz, kind) {
     const res = this.fort.place(ix, iz, kind, this.bank);
-    if (res.ok) this.emit('good', `${res.cell.label} online.`);
-    else this.emit('warn', res.reason);
+    if (res.ok) {
+      this.fx.builds += 1;
+      const p = this.fort.worldPos(ix, iz);
+      this.fxBurst('build', p.x, p.y + 2, p.z, 2, 0.6);
+      this.emit('good', `${res.cell.label} online.`);
+    } else this.emit('warn', res.reason);
     return res;
+  }
+
+  /**
+   * BUILD ALL: keep filling every free cell that touches the existing deck with
+   * `kind` until the fortress is full or the bank runs dry. Returns how many
+   * pieces went up (and why it stopped).
+   */
+  placeAll(kind, limit = 40) {
+    if (!this.fort || !this.fort.size) return { ok: false, placed: 0, reason: 'no fortress' };
+    const size = this.fort.size;
+    let placed = 0;
+    let stopped = 'no space';
+    for (let pass = 0; pass < size * size && placed < limit; pass++) {
+      let any = false;
+      for (let ix = 0; ix < size; ix++) {
+        for (let iz = 0; iz < size; iz++) {
+          if (placed >= limit) break;
+          const check = this.fort.canPlace(ix, iz, kind, this.bank);
+          if (!check.ok) {
+            if (/resources/.test(check.reason)) stopped = 'out of resources';
+            continue;
+          }
+          const res = this.fort.place(ix, iz, kind, this.bank);
+          if (!res.ok) continue;
+          placed += 1;
+          any = true;
+          this.fx.builds += 1;
+          const p = this.fort.worldPos(ix, iz);
+          this.fxBurst('build', p.x, p.y + 2, p.z, 2, 0.6);
+        }
+      }
+      if (!any) break;
+    }
+    if (placed > 0) this.emit('good', `Bulk build: ${placed} × ${kind} online.`);
+    else this.emit('warn', `Nothing built — ${stopped}.`);
+    return { ok: placed > 0, placed, reason: stopped };
   }
 
   removePiece(ix, iz) {
@@ -131,6 +180,8 @@ export class SkyGame {
       d.looted = true;
       this.stats.looted += 1;
       this.addCargo(loot);
+      this.fx.loot += 1;
+      this.fxBurst('loot', d.x, d.y, d.z, 4, 0.9);
       this.emit('good', `${d.name} stripped: +${loot.titanium} Ti · +${loot.dilithium} Di · +${loot.matrix} matrix`);
       return { ok: true, kind: 'loot', loot };
     }
@@ -205,6 +256,8 @@ export class SkyGame {
       color: '#8ef2ff',
     };
     this.bolts.push(bolt);
+    this.fx.shots += 1;
+    this.fxBurst('muzzle', origin.x, origin.y, origin.z, 1.4, 0.18);
     return bolt;
   }
 
@@ -226,6 +279,8 @@ export class SkyGame {
       splash: 26,
     };
     this.bolts.push(bolt);
+    this.fx.torps += 1;
+    this.fxBurst('muzzle', this.pos.x, this.pos.y - 2, this.pos.z, 2.2, 0.22);
     return bolt;
   }
 
@@ -235,6 +290,8 @@ export class SkyGame {
     this.energy -= 25;
     this.warpActive = 1.1;
     this.shieldTimer = 0;
+    this.fx.warps += 1;
+    this.fxBurst('warp', this.pos.x, this.pos.y, this.pos.z, 6, 0.9);
     this.emit('', 'Warp dash!');
     return true;
   }
@@ -274,6 +331,8 @@ export class SkyGame {
     }
     if (left > 0) this.hull -= left;
     this.hitFlash = 0.35;
+    this.fx.hits += 1;
+    this.fxBurst('hit', this.pos.x, this.pos.y, this.pos.z, 2, 0.4);
     if (this.hull <= 0) this.destroyShip(from);
   }
 
@@ -283,6 +342,8 @@ export class SkyGame {
     this.cargo = { titanium: 0, dilithium: 0, matrix: 0 };
     this.hull = this.ship.stats.hull;
     this.shields = 0;
+    this.fxBurst('boom', this.pos.x, this.pos.y, this.pos.z, 6, 1.4);
+    this.fx.alarms += 1;
     this.pos = { x: this.fort.x, y: this.fort.y + 40, z: this.fort.z + 120 };
     this.speed = 0;
     this.emit('bad', 'Hull breach — tractor-beamed back to the fortress. Cargo lost.');
@@ -416,6 +477,9 @@ export class SkyGame {
     this.updatePickups(dt);
     this.updateSieges(dt);
 
+    for (const e of this.effects) e.life -= dt;
+    if (this.effects.length) this.effects = this.effects.filter((e) => e.life > 0);
+
     // passive income while away from the fort
     const mined = this.fort.mine(dt);
     for (const [k, v] of Object.entries(mined)) {
@@ -529,6 +593,8 @@ export class SkyGame {
 
   killEnemy(e) {
     this.stats.kills += 1;
+    this.fx.kills += 1;
+    this.fxBurst('boom', e.pos.x, e.pos.y, e.pos.z, e.def.size, 1.1);
     e.fade = 0.6;
     const bounty = e.def.bounty;
     // bounties drop as cargo pickups so you still have to fly home

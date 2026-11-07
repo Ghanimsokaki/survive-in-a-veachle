@@ -69,6 +69,25 @@ one is a real object with rules:
 Turrets aim and fire through the sim; the renderer just rotates their 3D heads to the
 stored angle. Sieges damage the shields first, then the hull.
 
+## Sound and feedback
+
+There are **no audio files**: `js/audio.js` synthesises everything with WebAudio — a sawtooth
+engine drone whose pitch and filter follow throttle and warp, plus phaser zaps, torpedo
+launches, layered noise explosions, shield hits with a red screen vignette, warp whoosh,
+construction clinks and an upgrade chord. `O` or the **Sound** hotbar button mutes it.
+Every call is a no-op without an `AudioContext`, which is why the headless suites can run it.
+
+Visual feedback runs through a tiny effect bus: the sim pushes `{kind, x, y, z, size, life}`
+records (`muzzle`, `boom`, `hit`, `warp`, `build`, `loot`) and the renderer turns each one into
+an additive particle burst plus the matching sound — one mechanism for both.
+
+## BUILD ALL
+
+Inside the fortress tray, **⚡ BUILD ALL** repeatedly sweeps the 12×12 grid placing the selected
+piece in every free cell that touches the existing deck, stopping when the grid fills or the
+bank runs dry (`game.placeAll(kind)`). It is the fast way to grow a fortress perimeter after a
+siege, and it is covered by the headless tests.
+
 ## Flight model
 
 Arcade six-axis: `W/S` throttle, `A/D` yaw, `↑/↓` pitch, `Space/C` climb/dive, `Shift`

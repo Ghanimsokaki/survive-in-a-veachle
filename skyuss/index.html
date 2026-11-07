@@ -75,9 +75,11 @@
     <button data-act="interact"><span>🛰️</span>Tractor<kbd>E</kbd></button>
     <button data-act="build"><span>🏗️</span>Fortress<kbd>B</kbd></button>
     <button data-act="tiers"><span>🛸</span>Refit<kbd>U</kbd></button>
+    <button data-act="sound"><span id="soundIcon">🔊</span>Sound<kbd>O</kbd></button>
     <button data-act="help"><span>❔</span>Help<kbd>H</kbd></button>
   </div>
 
+  <div id="dmgFlash" class="dmg-flash"></div>
   <div id="toasts" class="toasts"></div>
   <div id="banner" class="banner hidden"><b id="bannerTitle"></b><span id="bannerText"></span></div>
   <div id="prompt" class="prompt hidden"></div>
@@ -102,6 +104,7 @@
     </header>
     <p class="panel-sub">Sleek modular platforms on a 12×12 holographic grid. Pieces must touch an existing deck.</p>
     <div class="piece-grid" id="pieceGrid"></div>
+    <button class="bulk-build" data-action="buildall">⚡ BUILD ALL — fill every free deck cell with the selected piece</button>
     <div class="fort-stats" id="fortStats"></div>
     <p class="panel-note"><b>Click</b> a cell on the grid to build · <b>Right click</b> recycles · <b>1–8</b> picks a piece · <b>B</b> exits.</p>
   </div>

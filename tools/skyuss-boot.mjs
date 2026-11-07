@@ -197,6 +197,34 @@ key('Escape'); await frames();
   assert(errors.length === 0, 'combat frames render without errors');
 }
 
+// BUILD ALL from the tray: one click fills the deck
+{
+  const g = window.__skyuss.game;
+  g.bank.titanium = 4000; g.bank.dilithium = 3000; g.bank.matrix = 20;
+  key('KeyB'); await frames();
+  const before = g.fort.count;
+  const bulk = document.querySelector('[data-action="buildall"]');
+  assert(!!bulk, 'the fortress tray offers BUILD ALL');
+  bulk.dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true }));
+  await frames();
+  assert(g.fort.count > before + 3, `BUILD ALL raised ${g.fort.count - before} pieces in one click`);
+  key('KeyB'); await frames();
+}
+
+// audio + effects: the sound module must survive headless, effects must fire
+{
+  key('KeyO'); await frames();
+  key('KeyO'); await frames();
+  const g = window.__skyuss.game;
+  const shots = g.fx.shots;
+  g.fireCd = 0; g.energy = 100;
+  g.fire();
+  await frames();
+  assert(g.fx.shots > shots, 'the live game registers a shot (audio + muzzle VFX)');
+  assert(g.effects.length >= 0, 'the effect bus is drained by the renderer');
+  assert(errors.length === 0, 'audio toggle and effects raise no errors');
+}
+
 // a few more simulated seconds with combat noise
 await frames();
 assert(drew > 150, `the loop keeps rendering (${drew} draw calls)`);

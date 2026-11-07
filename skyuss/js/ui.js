@@ -29,6 +29,7 @@ export const UI = {
       cargoFill: $('cargoFill'), cargoText: $('cargoText'),
       lockRing: $('lockRing'), abyssWarn: $('abyssWarn'), reticle: $('reticle'),
       radar: $('radar'), tierRows: $('tierRows'), pieceGrid: $('pieceGrid'), fortStats: $('fortStats'),
+      dmgFlash: $('dmgFlash'), soundIcon: $('soundIcon'),
       hotbar: $('hotbar'), fatal: $('fatal'),
     };
     this.rctx = this.el.radar.getContext('2d');
@@ -43,6 +44,7 @@ export const UI = {
         if (a === 'close') this.close();
         else if (a === 'upgrade') handlers.upgrade && handlers.upgrade(act.dataset.id);
         else if (a === 'piece') this.pickPiece(act.dataset.id);
+        else if (a === 'buildall') handlers.buildAll && handlers.buildAll();
       }
     });
 
@@ -172,6 +174,18 @@ export const UI = {
       <span>Turrets <b>${f.turrets.length}</b></span>
       <span>Range bonus <b>+${Math.round((f.rangeMult - 1) * 100)}%</b></span>
       <span>Mining <b>${(f.yields.titanium || 0).toFixed(1)} Ti/s</b></span>`;
+  },
+
+  flash() {
+    const el = this.el.dmgFlash;
+    if (!el) return;
+    el.classList.remove('on');
+    void el.offsetWidth;
+    el.classList.add('on');
+  },
+
+  setSoundIcon(on) {
+    if (this.el.soundIcon) this.el.soundIcon.textContent = on ? '🔊' : '🔇';
   },
 
   pickPiece(kind) {

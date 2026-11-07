@@ -144,6 +144,22 @@ section('sky fortress grid + meshes');
   const grid = buildFortGrid(THREE, fort);
   assert(!!grid.userData.highlight && !!grid.userData.highlight.isMesh, 'build grid exposes its highlight cell');
 
+  // BUILD ALL: fills the deck around the core until the bank or the grid gives out
+  {
+    const g3 = new SkyGame({ seed: 42 });
+    g3.bank.titanium = 5000;
+    const before = g3.fort.count;
+    const bulk = g3.placeAll('platform');
+    assert(bulk.ok && bulk.placed > 5, `build-all fills the deck (${bulk.placed} pieces)`);
+    assert(g3.fort.count === before + bulk.placed, 'the fortress grew by exactly the bulk count');
+    assert(g3.bank.titanium < 5000, 'bulk build spends the bank');
+
+    const g4 = new SkyGame({ seed: 43 });
+    g4.bank.titanium = 0;
+    const broke = g4.placeAll('platform');
+    assert(!broke.ok && broke.placed === 0, 'build-all stops when the bank is empty');
+  }
+
   const removed = fort.remove(6, 5);
   assert(removed.ok && !fort.get(6, 5), 'pieces can be recycled');
   assert(!fort.remove(FORT.coreCell.ix, FORT.coreCell.iz).ok, 'the command core cannot be removed');
@@ -276,6 +292,40 @@ if (!g.pickups.length) {
   const radar = g4.radar();
   assert(radar.some((r) => r.kind === 'fort') && radar.some((r) => r.kind === 'island'), 'radar reports the fortress and islands');
   assert(typeof g4.objectiveText() === 'string' && g4.objectiveText().length > 10, 'objective text is generated');
+}
+
+// --------------------------------------------------- feedback: fx + audio
+section('effects bus + audio module');
+{
+  const { SkyAudio } = await import('../skyuss/js/audio.js');
+  const audio = new SkyAudio();
+  assert(typeof audio.init === 'function' && audio.ready === false, 'audio is inert until a gesture initialises it');
+  // every call must be safe with no AudioContext (headless / muted browsers)
+  const calls = ['phaser', 'torpedo', 'explosion', 'hit', 'warp', 'pickup', 'build', 'upgrade', 'alarm', 'ui', 'engine', 'silenceEngine', 'resume'];
+  let threw = null;
+  try { for (const c of calls) audio[c](0.5, 0.5, false); } catch (e) { threw = e.message; }
+  assert(!threw, 'every audio call no-ops safely without a context' + (threw ? ' (' + threw + ')' : ''));
+  assert(audio.toggle() === false && audio.toggle() === true, 'audio can be muted and unmuted');
+
+  const g = new SkyGame({ seed: 33 });
+  g.bank = { titanium: 9000, dilithium: 9000, matrix: 90 };
+  const e = g.spawnEnemy('skiff', { x: g.pos.x + 60, y: g.pos.y, z: g.pos.z });
+  g.fireCd = 0; g.energy = 100;
+  g.fire();
+  assert(g.fx.shots === 1, 'firing bumps the shot counter');
+  assert(g.effects.some((x) => x.kind === 'muzzle'), 'firing emits a muzzle effect');
+  g.warp();
+  assert(g.fx.warps === 1 && g.effects.some((x) => x.kind === 'warp'), 'warp emits its effect');
+  e.hp = 1;
+  g.bolts.push({ owner: 'ship', kind: 'phaser', pos: { ...e.pos }, vel: { x: 0, y: 0, z: 0 }, damage: 50, life: 1 });
+  g.update(1 / 60, {});
+  assert(g.fx.kills === 1 && g.effects.some((x) => x.kind === 'boom'), 'kills emit an explosion effect');
+  const before = g.effects.length;
+  for (let i = 0; i < 200; i++) g.update(1 / 60, {});
+  assert(g.effects.length <= before && g.effects.every((x) => x.life > 0), 'effects expire on their own');
+
+  const built = g.placePiece(6, 4, 'platform');
+  assert(built.ok && g.effects.some((x) => x.kind === 'build'), 'building emits a construction effect');
 }
 
 // ------------------------------------------------- module wiring / API names

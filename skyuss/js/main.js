@@ -7,6 +7,7 @@ import { buildEnterprise } from './enterprise.js';
 import { buildFort, buildFortGrid } from './fort.js';
 import { buildIsland, buildDerelict, buildStorm, buildHomeBeacon } from './world.js';
 import { UI } from './ui.js';
+import { SkyAudio } from './audio.js';
 import { FORT, PIECE_ORDER } from './config.js';
 
 const SAVE_KEY = 'skyuss_v1';
@@ -210,11 +211,104 @@ const puffLow = makePuffField(1400, 1500, -60, 10, 45, 130, 0.55);
 const puffHigh = makePuffField(700, 1700, 60, 210, 70, 190, 0.32);
 cloudGroup.add(puffLow, puffHigh);
 
+// ------------------------------------------------------------- particle bursts
+const PARTICLE_MAX = 900;
+const partPos = new Float32Array(PARTICLE_MAX * 3);
+const partCol = new Float32Array(PARTICLE_MAX * 3);
+const partSize = new Float32Array(PARTICLE_MAX);
+const partAlpha = new Float32Array(PARTICLE_MAX);
+const partVel = new Float32Array(PARTICLE_MAX * 3);
+const partLife = new Float32Array(PARTICLE_MAX);
+const partMax = new Float32Array(PARTICLE_MAX);
+let partCursor = 0;
+
+const partGeo = new THREE.BufferGeometry();
+partGeo.setAttribute('position', new THREE.BufferAttribute(partPos, 3));
+partGeo.setAttribute('aColor', new THREE.BufferAttribute(partCol, 3));
+partGeo.setAttribute('aSize', new THREE.BufferAttribute(partSize, 1));
+partGeo.setAttribute('aAlpha', new THREE.BufferAttribute(partAlpha, 1));
+const partMat = new THREE.ShaderMaterial({
+  uniforms: { uTex: { value: puffTex } },
+  vertexShader: `
+    attribute vec3 aColor; attribute float aSize; attribute float aAlpha;
+    varying vec3 vColor; varying float vAlpha;
+    void main() {
+      vColor = aColor; vAlpha = aAlpha;
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      gl_Position = projectionMatrix * mv;
+      gl_PointSize = min(260.0, aSize * (340.0 / max(-mv.z, 1.0)));
+    }`,
+  fragmentShader: `
+    uniform sampler2D uTex; varying vec3 vColor; varying float vAlpha;
+    void main() {
+      float a = texture2D(uTex, gl_PointCoord).a * vAlpha;
+      if (a < 0.01) discard;
+      gl_FragColor = vec4(vColor, a);
+    }`,
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+});
+const particleField = new THREE.Points(partGeo, partMat);
+particleField.frustumCulled = false;
+scene.add(particleField);
+
+const _pc = new THREE.Color();
+function spawnParticles(x, y, z, count, color, speed, size, life) {
+  _pc.set(color);
+  for (let i = 0; i < count; i++) {
+    const idx = partCursor = (partCursor + 1) % PARTICLE_MAX;
+    const i3 = idx * 3;
+    partPos[i3] = x; partPos[i3 + 1] = y; partPos[i3 + 2] = z;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const s = speed * (0.35 + Math.random() * 0.65);
+    partVel[i3] = Math.sin(phi) * Math.cos(theta) * s;
+    partVel[i3 + 1] = Math.cos(phi) * s;
+    partVel[i3 + 2] = Math.sin(phi) * Math.sin(theta) * s;
+    partCol[i3] = _pc.r; partCol[i3 + 1] = _pc.g; partCol[i3 + 2] = _pc.b;
+    partSize[idx] = size * (0.6 + Math.random() * 0.8);
+    partLife[idx] = life * (0.7 + Math.random() * 0.5);
+    partMax[idx] = partLife[idx];
+    partAlpha[idx] = 1;
+  }
+  partGeo.attributes.position.needsUpdate = true;
+  partGeo.attributes.aColor.needsUpdate = true;
+  partGeo.attributes.aSize.needsUpdate = true;
+  partGeo.attributes.aAlpha.needsUpdate = true;
+}
+
+function updateParticles(dt) {
+  let any = false;
+  for (let i = 0; i < PARTICLE_MAX; i++) {
+    if (partLife[i] <= 0) { if (partAlpha[i] !== 0) { partAlpha[i] = 0; any = true; } continue; }
+    const i3 = i * 3;
+    partLife[i] -= dt;
+    partPos[i3] += partVel[i3] * dt;
+    partPos[i3 + 1] += partVel[i3 + 1] * dt;
+    partPos[i3 + 2] += partVel[i3 + 2] * dt;
+    partVel[i3] *= 0.955; partVel[i3 + 1] *= 0.955; partVel[i3 + 2] *= 0.955;
+    partAlpha[i] = Math.max(0, partLife[i] / Math.max(0.001, partMax[i]));
+    any = true;
+  }
+  if (any) {
+    partGeo.attributes.position.needsUpdate = true;
+    partGeo.attributes.aAlpha.needsUpdate = true;
+  }
+}
+
 // ----------------------------------------------------------------- world meshes
 const worldGroup = new THREE.Group();
 scene.add(worldGroup);
 const homeBeacon = buildHomeBeacon(THREE);
 scene.add(homeBeacon);
+
+const beamGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+const beamMat = new THREE.LineBasicMaterial({ color: '#7ef0ff', transparent: true, opacity: 0.7 });
+const tractorBeam = new THREE.Line(beamGeo, beamMat);
+tractorBeam.visible = false;
+tractorBeam.frustumCulled = false;
+scene.add(tractorBeam);
 
 // ------------------------------------------------------------------- gameplay
 let game = null;
@@ -238,6 +332,8 @@ const state = {
   hoverCell: null,
   shake: 0,
 };
+
+const audio = new SkyAudio();
 
 const boltMeshes = new Map();     // bolt object → mesh
 const enemyMeshes = new Map();    // enemy id → group
@@ -312,6 +408,9 @@ function startGame(resume) {
   rebuildFort();
   homeBeacon.position.set(game.fort.x, game.fort.y - 2, game.fort.z);
 
+  audio.init();
+  audio.resume();
+  audio.setEnabled(audio.enabled);
   UI.showMenu(false);
   UI.showHUD(true);
   UI.close();
@@ -348,7 +447,14 @@ UI.init({
     else if (act === 'interact') doInteract();
     else if (act === 'fire') { game.fire(); }
     else if (act === 'torpedo') game.fireTorpedo();
+    else if (act === 'buildall') bulkBuild();
+    else if (act === 'sound') {
+      const on = audio.toggle();
+      UI.toast(on ? '🔊 Audio on' : '🔇 Audio muted', '');
+      UI.setSoundIcon(on);
+    }
   },
+  buildAll: () => bulkBuild(),
   upgrade: (component) => {
     const res = game.upgrade(component);
     if (res.ok) {
@@ -387,6 +493,18 @@ function exitBuild() {
   state.hoverCell = null;
 }
 
+function bulkBuild() {
+  if (!game) return;
+  const res = game.placeAll(UI.piece);
+  if (game.fort.count) {
+    rebuildFort();
+    UI.refreshBuild(game);
+    persist();
+  }
+  if (res.ok) UI.toast(`⚡ Built <b>${res.placed}</b> × ${UI.piece}.`, 'good');
+  return res;
+}
+
 function doInteract() {
   const res = game.interact();
   if (res && res.ok) {
@@ -407,6 +525,11 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'KeyH') { UI.toggle('help', game); e.preventDefault(); }
   else if (k === 'KeyF') { if (game.warp()) state.shake = 0.5; }
   else if (k === 'KeyE') doInteract();
+  else if (k === 'KeyO') {
+    const on = audio.toggle();
+    UI.toast(on ? '🔊 Audio on' : '🔇 Audio muted', '');
+    UI.setSoundIcon(on);
+  }
   else if (k === 'Escape') { if (UI.panelOpen()) UI.close(); }
   else if (state.buildMode && /^Digit[1-8]$/.test(k)) {
     const idx = parseInt(k.slice(5), 10) - 1;
@@ -566,6 +689,61 @@ function syncCamera(dt, snap = false) {
   const wantFov = 60 + (game.warpActive > 0 ? 16 : 0) + Math.min(6, Math.abs(game.speed) * 0.06);
   camera.fov += (wantFov - camera.fov) * Math.min(1, dt * 4);
   camera.updateProjectionMatrix();
+}
+
+const EFFECT_LOOK = {
+  boom: { color: '#ffb457', count: 26, speed: 34, size: 3.4, life: 1.0, particles: true },
+  hit: { color: '#ff8a96', count: 10, speed: 20, size: 2.2, life: 0.55, particles: true },
+  muzzle: { color: '#9ff3ff', count: 7, speed: 16, size: 1.8, life: 0.28, particles: true },
+  warp: { color: '#b9a4ff', count: 34, speed: 46, size: 3.0, life: 0.9, particles: true },
+  build: { color: '#ffd98a', count: 12, speed: 14, size: 2.0, life: 0.6, particles: true },
+  loot: { color: '#8ef0c0', count: 14, speed: 18, size: 2.0, life: 0.7, particles: true },
+};
+
+function consumeEffects() {
+  if (!game || !game.effects) return;
+  for (const e of game.effects) {
+    if (e._seen) continue;
+    e._seen = true;
+    const look = EFFECT_LOOK[e.kind] || EFFECT_LOOK.hit;
+    if (look.particles) {
+      spawnParticles(e.x, e.y, e.z, look.count, look.color, look.speed * (e.size || 1), look.size, look.life);
+    }
+    if (e.kind === 'boom') audio.explosion(Math.min(2, e.size || 1));
+    else if (e.kind === 'muzzle') audio.phaser();
+    else if (e.kind === 'warp') audio.warp();
+    else if (e.kind === 'build') audio.build();
+    else if (e.kind === 'loot') audio.pickup();
+    else if (e.kind === 'hit') { audio.hit(); UI.flash(); }
+  }
+}
+
+function syncBeam() {
+  if (!game) return;
+  // tractor beam: ship → nearest loot, derelict or the fortress while docking
+  let target = null;
+  let best = 120;
+  for (const p of game.pickups) {
+    const d = Math.hypot(p.pos.x - game.pos.x, p.pos.y - game.pos.y, p.pos.z - game.pos.z);
+    if (d < best) { best = d; target = p.pos; }
+  }
+  if (!target) {
+    const d = game.nearDerelict;
+    if (d) target = { x: d.x, y: d.y, z: d.z };
+  }
+  if (!target && game.nearFort && game.cargoTotal > 0) {
+    target = { x: game.fort.x, y: game.fort.y + 6, z: game.fort.z };
+  }
+  if (target) {
+    const arr = beamGeo.attributes.position.array;
+    arr[0] = game.pos.x; arr[1] = game.pos.y; arr[2] = game.pos.z;
+    arr[3] = target.x; arr[4] = target.y; arr[5] = target.z;
+    beamGeo.attributes.position.needsUpdate = true;
+    beamMat.opacity = 0.35 + Math.sin(game.t * 14) * 0.25;
+    tractorBeam.visible = true;
+  } else {
+    tractorBeam.visible = false;
+  }
 }
 
 function syncShip(dt) {
@@ -772,11 +950,17 @@ function loop() {
     if (JSON.stringify(game.ship.tiers) !== shipSig) rebuildShipMesh();
     saveTimer += dt;
     if (saveTimer > 15) { saveTimer = 0; persist(); }
+    consumeEffects();
+    const st = game.ship.stats;
+    audio.engine(Math.min(1, Math.abs(game.speed) / Math.max(1, st.maxSpeed)), game.boost || 0, game.warpActive > 0);
   }
 
   if (game) {
+    if (!started) audio.silenceEngine();
     syncShip(dt);
     syncWorld(dt);
+    syncBeam();
+    updateParticles(dt);
     syncBolts();
     syncEnemies();
     syncPickups();

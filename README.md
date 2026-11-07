@@ -199,6 +199,8 @@ js/main.js            boot + requestAnimationFrame loop
 * **Sky fortresses** — a 12×12 holographic grid of sleek sci-fi platforms, turrets, shield
   pylons, missile batteries, refineries and matrix condensers, attacked by siege fleets.
 * **The abyss** — drop below the cloud line and the atmosphere crushes the hull.
+* **Synthesised audio** — WebAudio engine drone, phasers, explosions and alarms, zero asset files.
+* **BUILD ALL** — one click fills every free deck cell of the fortress with the selected piece.
 * **114 headless assertions** (`npm run smoke:skyuss`) cover the sim, the ship constructor,
   every fortress piece and the whole browser wiring — no GPU needed.
 
