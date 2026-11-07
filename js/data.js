@@ -167,6 +167,7 @@ export const INTERIOR_BY_ID = Object.fromEntries(INTERIOR_ITEMS.map((i) => [i.id
 
 // --------------------------------------------- car paint presets
 export const CAR_PAINTS = [
+  { id: 'timber',  name: 'Timber',     body: '#7a5334', dark: '#68452a', trim: '#8d6440' },
   { id: 'bay',     name: 'Bay Blue',   body: '#35506b', dark: '#2f4a66', trim: '#3b5875' },
   { id: 'rust',    name: 'Rust Red',   body: '#7a3a2c', dark: '#67301f', trim: '#8c4633' },
   { id: 'jungle',  name: 'Jungle',     body: '#3f5734', dark: '#37492e', trim: '#4b6a3d' },

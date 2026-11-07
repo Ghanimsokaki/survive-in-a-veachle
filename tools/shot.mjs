@@ -198,4 +198,49 @@ for (let i = 0; i < 8; i++) {
 }
 shot('09-anomaly-tornado');
 
+// --- 10-12. the wagon itself: turning, hero angle, night
+G.endTornado(false);
+G.night = 0;
+G.enterZone(0);
+G.car.raft = false;
+G.car.hull = G.car.hullMax;
+G.car.anchors = 1;
+G.car.angle = 0.5;
+G.mouse.x = 1000; G.mouse.y = 420;
+for (let i = 0; i < 90; i++) G.frame(1 / 60);
+// mid-turn: the chase camera lags, so the wagon is seen at an angle
+G.car.angle = 1.15;
+G.frame(1 / 60);
+G.frame(1 / 60);
+shot('10-wagon-turning');
+
+const { Camera3D, S } = await import('../js/camera3d.js');
+const freeCam = (side, dist, height, lift = 0) => {
+  Camera3D.update = function (g2) {
+    const car = g2.car;
+    const yaw = car.angle;
+    const c0x = car.x * S, c0z = car.y * S;
+    const ox = Math.cos(yaw) * Math.cos(side) - Math.sin(yaw) * Math.sin(side);
+    const oz = Math.cos(yaw) * Math.sin(side) + Math.sin(yaw) * Math.cos(side);
+    const ty = 2.1 + lift;
+    this.pos.x = c0x + ox * dist;
+    this.pos.y = ty + height;
+    this.pos.z = c0z + oz * dist;
+    const lx = c0x - this.pos.x, ly = ty - this.pos.y, lz = c0z - this.pos.z;
+    this.yaw = Math.atan2(lz, lx);
+    this.pitch = Math.atan2(-ly, Math.hypot(lx, lz));
+    this.focal = (g2.view.h / 2) / Math.tan((62 * Math.PI / 180) / 2);
+    this.mode = 'car';
+  };
+};
+freeCam(0.85, 12.5, 6.2);
+G.car.angle = 0.35;
+for (let i = 0; i < 6; i++) G.frame(1 / 60);
+shot('11-wagon-hero');
+
+G.night = 0.85;
+freeCam(-2.3, 11.5, 5.2);
+for (let i = 0; i < 6; i++) G.frame(1 / 60);
+shot('12-wagon-night');
+
 console.log('done');

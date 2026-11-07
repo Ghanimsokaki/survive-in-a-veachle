@@ -499,6 +499,97 @@ G.endTornado(false);
 G.night = 0;
 G.car.hull = G.car.hullMax;
 
+// ---------------------------------------------------------------- wagon look / turning
+const { carFaces } = await import('../js/render.js');
+const { box: geoBox } = await import('../js/geo3d.js');
+
+// the yaw of a box must match the layout transform, or a turning car shears apart
+{
+  const yaw = 0.62, out = [];
+  const v = geoBox(out, 0, 0, 0, 2, 2, 2, '#fff', yaw);
+  const lx = 1, lz = -1; // the (hx, -hy, -hz) corner
+  const ex = lx * Math.cos(yaw) - lz * Math.sin(yaw);
+  const ez = lx * Math.sin(yaw) + lz * Math.cos(yaw);
+  assert(Math.abs(v[1].x - ex) < 1e-9 && Math.abs(v[1].z - ez) < 1e-9,
+    'box yaw matches the layout transform (no mirrored spin)');
+}
+
+// the wagon's own geometry must be yaw-invariant in car space
+{
+  const centre = (g) => ({ x: g.car.x * 0.05, z: g.car.y * 0.05 });
+  const localBox = (g, yaw) => {
+    const c0 = centre(g);
+    const cs = Math.cos(-yaw), sn = Math.sin(-yaw);
+    const b = { minX: 1e9, maxX: -1e9, minZ: 1e9, maxZ: -1e9, minY: 1e9, maxY: -1e9, n: 0 };
+    for (const f of carFaces(g)) {
+      for (const p of f.p) {
+        const dx = p.x - c0.x, dz = p.z - c0.z;
+        const lx = dx * cs - dz * sn, lz = dx * sn + dz * cs;
+        b.minX = Math.min(b.minX, lx); b.maxX = Math.max(b.maxX, lx);
+        b.minZ = Math.min(b.minZ, lz); b.maxZ = Math.max(b.maxZ, lz);
+        b.minY = Math.min(b.minY, p.y); b.maxY = Math.max(b.maxY, p.y);
+        b.n++;
+      }
+    }
+    return b;
+  };
+  G.newGame();                       // fresh wagon: default paint, empty deck
+  assert(G.car.paintId === 'timber' && G.car.paint === '#7a5334', 'a new wagon is weathered timber');
+  G.car.angle = 0;
+  const a0 = localBox(G, 0);
+  G.car.angle = 0.75;
+  const a1 = localBox(G, 0.75);
+  G.car.angle = -1.9;
+  const a2 = localBox(G, -1.9);
+  const same = (p, q) => Math.abs(p - q) < 0.05;
+  assert(same(a0.minX, a1.minX) && same(a0.maxX, a1.maxX) && same(a0.minZ, a1.minZ)
+    && same(a0.maxZ, a1.maxZ) && same(a0.minY, a1.minY) && same(a0.maxY, a1.maxY)
+    && same(a0.minX, a2.minX) && same(a0.maxZ, a2.maxZ),
+    `wagon geometry is identical at any heading (${a0.minX.toFixed(2)}..${a0.maxX.toFixed(2)} × ${a0.minZ.toFixed(2)}..${a0.maxZ.toFixed(2)}, ${a0.n} points)`);
+  assert(a0.maxX > 5.5 && a0.minX < -4.5 && a0.maxY > 3.3,
+    'wagon silhouette: engine hood ahead, tailgate behind, stack on top');
+  G.car.angle = 0;
+}
+
+// Dead Rails-style parts are actually in the mesh
+{
+  const faces = carFaces(G);
+  const colours = new Set(faces.map((f) => f.c));
+  const has = (c) => colours.has(c);
+  assert(faces.length > 260, `the wagon is detailed (${faces.length} faces)`);
+  assert(has('#1b2023') && has('#2e3538') && has('#4a5357'), 'iron wheels, frame and banding');
+  assert(has('#7b5a37') || has('#8f6c45'), 'plank deck boards');
+  assert(has('#b0873f') || has('#d2a95c'), 'brass fittings');
+  assert(has('#ffd489'), 'warm lit windows and lamps');
+  // spokes must lie in the wheel plane, not stick out sideways like a shelf
+  const extent = (f, k) => {
+    const v = f.p.map((p) => p[k]);
+    return Math.max(...v) - Math.min(...v);
+  };
+  const spokes = faces.filter((f) => f.c === '#4a5357' && Math.abs(f.cy - 0.98) < 0.5
+    && extent(f, 'z') < 0.2 && extent(f, 'x') > 0.4);
+  assert(spokes.length >= 12 && spokes.every((f) => extent(f, 'z') < 0.2),
+    `wheel spokes sit in the wheel plane (${spokes.length} faces)`);
+}
+
+// wheels roll and the stack smokes while driving
+{
+  G.car.grid.cells = new Array(24).fill(null);
+  G.car.speed = 0;
+  G.car.wheelSpin = 0;
+  G.keys = G.keys || {};
+  G.car.hull = G.car.hullMax;
+  G.zone.def = G.zone.def || {};
+  step(1);
+  const spin0 = G.car.wheelSpin;
+  G.car.speed = 120;
+  step(10);
+  assert(G.car.wheelSpin > spin0, 'wheels roll with the distance travelled');
+  const smoke = G.particles.filter((p) => p.color === '#6b7280' || p.color === '#9ca3af');
+  assert(smoke.length > 0, 'the stack puffs smoke while rolling');
+  G.car.speed = 0;
+}
+
 console.log('\n--- errors (' + errors.length + ') ---');
 errors.slice(0, 20).forEach((e) => console.log(e));
 process.exit(errors.length ? 1 : 0);

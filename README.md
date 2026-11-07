@@ -96,9 +96,37 @@ npm start                         # same thing
 Everything is drawn in real perspective:
 
 - **Camera** — a smoothed chase camera behind the car (`Camera3D`), a low third-person camera when you are on foot, and a top-down build camera over the roof or an x-ray camera over the open cabin. Screen-shake, focal-length FOV and projection all live in `js/camera3d.js`.
-- **Renderer** — `js/render.js` builds the frame from flat-shaded polygons: ground tiles with per-tile fog, roads with dashes, procedural low-poly ruins, wrecks, palms and landmarks, depth-sorted (painter's algorithm) with back-face culling, near-plane clipping and per-face sun shading. The car is modelled from ~60 boxes: chassis, cabin, glass, wheels that spin, bumpers, lights, raft floats and the wooden roof deck with its railing.
+- **Renderer** — `js/render.js` builds the frame from flat-shaded polygons: ground tiles with per-tile fog, roads with dashes, procedural low-poly ruins, wrecks, palms and landmarks, depth-sorted (painter's algorithm) with back-face culling, near-plane clipping and per-face sun shading. The car is a **timber wagon in the spirit of Roblox *Dead Rails***, modelled from ~200 boxes: an iron underframe with couplers, spoked iron wheels that roll with the distance travelled, a painted-plank body with iron banding, brass bolts and vertical board joints, warm lit windows, a braced tailgate with steps and a lantern, and a plank build deck with a riveted rim and timber rails. Ahead of the box sits an engine hood — clad bonnet, iron lid, brass-collared stack that puffs smoke while rolling, lit headlamp and a slatted cowcatcher. Raft floats slot under it all.
 - **The rig** — the player, survivors and every humanoid enemy are built from an articulated hierarchy (pelvis → torso → head, two-segment legs, arms with a weapon in the right hand). The rig walks with a swinging gait, aims and holds the gun in front of the chest, and fires with a muzzle flash. It genuinely leaves the car: press `G`, walk around with `WASD`, shoot with the mouse, climb back in near the car. Enemy bullets can hit you on foot — get knocked down and you are dragged back behind the wheel with a dented hull.
 - **Mouse picking** — the cursor is unprojected into the world: a ground-plane ray for aiming, a roof-plane ray for build cells, and a cabin-plane ray for interior mount points.
+
+## The wagon
+
+The vehicle is not a generic car: it is a small locomotive-wagon, and the build deck on
+top stays exactly where the 6×4 module grid expects it.
+
+| Part | Detail |
+| --- | --- |
+| **Underframe** | iron sills and cross beams, buffer beam, rear coupler with a brass pin |
+| **Wheels** | four spoked iron wheels — tyre, web, six brass-hub spokes each — that roll with the distance travelled |
+| **Body** | painted plank walls over an iron skirt, iron banding with brass bolts, vertical board joints, painted to the chosen swatch |
+| **Windows** | warm amber glass in timber mullions, so the cabin glows at night |
+| **Tailgate** | braced end gate, three steps down to the road, bracket lantern, coupler |
+| **Build deck** | seven plank boards over a seam bed, riveted iron rim, timber rails with capped posts |
+| **Engine hood** | clad bonnet with iron lid and bands, smokestack (brass ring, flared cap), lit headlamp, slatted cowcatcher, brass handrails and steam pipes |
+
+The default paint swatch is now **Timber**; the other five swatches repaint the same planks,
+so a rust-red or gunmetal wagon still reads as wood rather than plastic.
+
+### The turning bug
+
+Every yawed box used to be spun the *wrong way*: `box()` rotated local points by
+`−yaw` while the layout transform that placed the boxes used `+yaw`. At heading 0 nothing
+showed, but from a few degrees of steering on the parts sheared apart — long deck beams
+stuck out sideways, the roof plate drifted off the chassis and the wheels scattered. `box()`
+now uses the same rotation sense as `carBox` / `quad` / `prismZ`, and the smoke test pins it
+down: the wagon's own geometry is re-measured in car space at three headings (0, 0.75 and
+−1.9 rad) and must come out identical to 5 cm.
 
 ## Inside the cabin
 

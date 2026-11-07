@@ -316,44 +316,183 @@ function buildCar(G, out) {
     box(out, cx, 0.5, cz, 9.2, 0.22, 6.2, '#7a5230', yaw);
   }
 
-  // chassis
-  carBox(out, G, 0, 0.62, 0, 8.7, 0.55, 5.7, '#22313f');
-  const paint = car.paint || '#35506b';
-  const paintDark = car.paintDark || '#2f4a66';
-  const paintTrim = car.paintTrim || '#3b5875';
-  carBox(out, G, 0, 1.16, 0, 8.6, 0.9, 5.6, shallow ? '#5a4b45' : paint, 0, 0, null, { skipTop: true });
-  carBox(out, G, 2.7, 1.62, 0, 3.0, 0.5, 5.1, paintTrim);
-  carBox(out, G, -0.5, 1.86, 0, 4.4, 1.0, 5.0, paintDark, 0, 0, null, { skipTop: true });
-  // glass
-  carBox(out, G, 1.62, 1.98, 0, 0.14, 0.62, 4.2, '#9fd8ff');
-  carBox(out, G, -0.5, 1.98, 2.52, 3.6, 0.55, 0.06, '#8fd3ff');
-  carBox(out, G, -0.5, 1.98, -2.52, 3.6, 0.55, 0.06, '#8fd3ff');
-  // bumpers, lights
-  carBox(out, G, 4.34, 0.95, 0, 0.3, 0.55, 5.3, '#4b5563');
-  carBox(out, G, -4.34, 0.95, 0, 0.3, 0.55, 5.3, '#4b5563');
-  carBox(out, G, 4.3, 1.55, 2.0, 0.16, 0.34, 0.8, '#fff7cc');
-  carBox(out, G, 4.3, 1.55, -2.0, 0.16, 0.34, 0.8, '#fff7cc');
-  carBox(out, G, -4.3, 1.55, 1.9, 0.14, 0.3, 0.7, '#b91c1c');
-  carBox(out, G, -4.3, 1.55, -1.9, 0.14, 0.3, 0.7, '#b91c1c');
-  // spare wheel + jerry cans
-  carBox(out, G, -4.4, 1.9, 0, 0.16, 1.2, 1.2, '#111827', 0, Math.PI / 2);
-  carBox(out, G, -3.2, 2.2, 2.2, 0.5, 0.5, 0.5, '#b45309');
-  carBox(out, G, -3.2, 2.2, -2.2, 0.5, 0.5, 0.5, '#b45309');
+  // ---------------------------------------------------------------- wagon
+  // Dead Rails-style timber wagon: iron underframe and spoked wheels, painted
+  // plank walls with iron banding, warm lit windows, a boiler nose with a
+  // smokestack + headlamp + cowcatcher, and a plank build deck on top.
+  const paint = car.paint || '#7a5334';
+  const paintDark = car.paintDark || '#68452a';
+  const paintTrim = car.paintTrim || '#8d6440';
+  const IRON = '#2e3538';
+  const IRON_LT = '#4a5357';
+  const IRON_DK = '#20262a';
+  const BRASS = '#b0873f';
+  const BRASS_LT = '#d2a95c';
+  const WOOD = '#7b5a37';
+  const WOOD_LT = '#8f6c45';
+  const WOOD_DK = '#5c4227';
+  const WOOD_SEAM = '#3f2d1a';
+  const LAMP = '#ffd489';
 
-  // wheels
+  // local -> world helper that also lets a part carry its own extra yaw
+  const wbox = (lx, ly, lz, sx, sy, sz, color, ryExtra = 0, opts = {}) => {
+    const wx = cx + lx * Math.cos(yaw) - lz * Math.sin(yaw);
+    const wz = cz + lx * Math.sin(yaw) + lz * Math.cos(yaw);
+    return box(out, wx, ly, wz, sx, sy, sz, color, yaw + ryExtra,
+      opts.rx || 0, opts.rz || 0, { ...opts, alpha: opts.alpha === undefined ? CAR_ALPHA : opts.alpha });
+  };
+  const solid = { alpha: 1 };
+
+  // --- iron underframe: sills, cross beams, couplers
+  carBox(out, G, 0, 0.68, 0, 8.8, 0.28, 5.34, IRON);
+  for (const sz of [-1, 1]) carBox(out, G, 0, 0.52, sz * 2.6, 9.0, 0.22, 0.22, IRON_DK);
+  for (const lx of [-3.4, -1.15, 1.15, 3.4]) carBox(out, G, lx, 0.52, 0, 0.22, 0.22, 5.4, IRON_DK);
+  carBox(out, G, 4.66, 0.8, 0, 0.46, 0.2, 0.62, IRON_LT);
+
+  // --- spoked iron wheels (the old spokes were flat plates in the wrong plane)
   const spin = car.wheelSpin || 0;
-  const wheelPos = [[2.7, 2.95], [2.7, -2.95], [-2.7, 2.95], [-2.7, -2.95]];
+  const wheelPos = [[2.75, 2.98], [2.75, -2.98], [-2.75, 2.98], [-2.75, -2.98]];
   for (const [lx, lz] of wheelPos) {
     const wx = cx + lx * Math.cos(yaw) - lz * Math.sin(yaw);
     const wz = cz + lx * Math.sin(yaw) + lz * Math.cos(yaw);
-    prismZ(out, wx, 0.85, wz, 0.9, 0.62, '#111827', 8, yaw);
-    prismZ(out, wx, 0.85, wz, 0.44, 0.66, '#4b5563', 6, yaw);
-    for (let i = 0; i < 2; i++) {
-      box(out, wx, 0.85, wz, 0.72, 0.1, 0.68, '#9ca3af', yaw, 0, spin + i * (Math.PI / 2));
+    // axle
+    box(out, wx, 0.98, wz, 0.5, 0.16, 0.16, IRON_DK, yaw);
+    prismZ(out, wx, 0.98, wz, 0.98, 0.3, '#1b2023', 12, yaw);          // tyre
+    prismZ(out, wx, 0.98, wz, 0.7, 0.33, IRON, 12, yaw);               // wheel web
+    for (let i = 0; i < 6; i++) {
+      box(out, wx, 0.98, wz, 1.34, 0.13, 0.12, IRON_LT, yaw, 0, spin + i * (Math.PI / 6) * 2);
+    }
+    prismZ(out, wx, 0.98, wz, 0.2, 0.4, BRASS, 8, yaw);                // hub
+    prismZ(out, wx, 0.98, wz, 0.11, 0.46, BRASS_LT, 6, yaw);
+  }
+
+  // --- timber body: sill, painted planks, iron bands, lit windows
+  carBox(out, G, 0, 1.08, 0, 8.5, 0.18, 5.5, WOOD_DK);
+  carBox(out, G, 0, 1.24, 0, 8.36, 0.22, 5.44, IRON_DK);              // iron skirt
+  const plankRow = (y, h, col) => {
+    for (const sz of [-1, 1]) carBox(out, G, 0, y, sz * 2.68, 8.3, h, 0.16, col, 0, 0, 1);
+    for (const sx of [-1, 1]) carBox(out, G, sx * 4.14, y, 0, 0.16, h, 5.28, col, 0, 0, 1);
+  };
+  plankRow(1.5, 0.3, shallow ? '#5a4b45' : paintDark);
+  plankRow(1.84, 0.3, shallow ? '#63524a' : paint);
+  // iron band + rivets above the planks
+  for (const sz of [-1, 1]) {
+    carBox(out, G, 0, 2.06, sz * 2.72, 8.3, 0.09, 0.08, IRON_LT, 0, 0, 1);
+    for (let i = -3; i <= 3; i++) carBox(out, G, i * 1.15, 2.06, sz * 2.78, 0.1, 0.14, 0.06, BRASS, 0, 0, 1);
+  }
+  for (const sx of [-1, 1]) carBox(out, G, sx * 4.18, 2.06, 0, 0.08, 0.09, 5.3, IRON_LT, 0, 0, 1);
+  // vertical board joints down the sides
+  for (const sz of [-1, 1]) {
+    for (let i = -2; i <= 2; i++) carBox(out, G, i * 1.66, 1.68, sz * 2.72, 0.07, 0.9, 0.07, WOOD_DK, 0, 0, 1);
+  }
+
+  // lit windows: warm glass between timber mullions
+  for (const sz of [-1, 1]) {
+    for (const seg of [-2.6, -0.95, 0.7, 2.35]) {
+      carBox(out, G, seg, 2.32, sz * 2.70, 1.5, 0.42, 0.09, LAMP, 0, 0, 0.92);
+    }
+    for (const seg of [-3.4, -1.78, -0.12, 1.53, 3.18]) {
+      carBox(out, G, seg, 2.32, sz * 2.74, 0.17, 0.5, 0.1, WOOD_DK, 0, 0, 1);
+    }
+    carBox(out, G, 0, 2.6, sz * 2.7, 8.4, 0.16, 0.2, WOOD_DK, 0, 0, 1);   // top rail
+  }
+  for (const sx of [-1, 1]) {
+    carBox(out, G, sx * 4.2, 2.32, 0, 0.09, 0.42, 2.2, LAMP, 0, 0, 0.9);
+    carBox(out, G, sx * 4.24, 2.32, 0, 0.1, 0.5, 0.17, WOOD_DK, 0, 0, 1);
+    carBox(out, G, sx * 4.24, 1.7, 0, 0.1, 1.3, 5.2, shadeColor(paint, 0.82, 0), 0, 0, 1);
+  }
+  // corner posts + iron caps
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      carBox(out, G, sx * 4.12, 1.9, sz * 2.7, 0.26, 1.8, 0.26, WOOD_DK, 0, 0, 1);
+      carBox(out, G, sx * 4.12, 2.86, sz * 2.7, 0.32, 0.1, 0.32, IRON, 0, 0, 1);
     }
   }
 
-  // interior floor + furniture (visible through the glass, or in x-ray build mode)
+  // --- engine hood: timber-clad bonnet, stack, headlamp, cowcatcher
+  // Kept to flat boxes on purpose: the painter sorter handles well separated
+  // boxes far better than tall cylinders stacked at the same depth.
+  {
+    // frame + buffer beam
+    carBox(out, G, 4.95, 0.88, 0, 2.3, 0.18, 2.3, IRON, 0, 0, 1);
+    for (const sz of [-1, 1]) carBox(out, G, 4.55, 0.74, sz * 0.85, 1.2, 0.14, 0.14, IRON_DK, 0, 0, 1);
+    carBox(out, G, 4.3, 1.02, 0, 0.24, 0.36, 3.6, IRON_DK, 0, 0, 1);
+    // bonnet
+    carBox(out, G, 5.0, 1.8, 0, 1.9, 1.55, 2.0, shallow ? '#5b463a' : paintTrim, 0, 0, 1);
+    carBox(out, G, 5.0, 2.62, 0, 1.72, 0.14, 1.86, IRON, 0, 0, 1);
+    carBox(out, G, 5.0, 2.72, 0, 1.5, 0.08, 1.6, IRON_LT, 0, 0, 1);
+    for (const lx of [4.5, 5.5]) carBox(out, G, lx, 1.8, 0, 0.11, 1.58, 2.08, IRON_LT, 0, 0, 1);
+    carBox(out, G, 5.0, 1.8, 0, 1.94, 0.1, 2.04, BRASS, 0, 0, 1);
+    // stack
+    carBox(out, G, 5.0, 3.02, 0, 0.52, 0.62, 0.52, IRON_DK, 0, 0, 1);
+    carBox(out, G, 5.0, 3.06, 0, 0.58, 0.1, 0.58, BRASS, 0, 0, 1);
+    carBox(out, G, 5.0, 3.38, 0, 0.68, 0.14, 0.68, IRON_DK, 0, 0, 1);
+    // headlamp
+    carBox(out, G, 5.86, 2.3, 0, 0.34, 0.4, 0.46, BRASS, 0, 0, 1);
+    carBox(out, G, 6.02, 2.3, 0, 0.05, 0.3, 0.36, LAMP, 0, 0, 1);
+    carBox(out, G, 5.86, 2.54, 0, 0.38, 0.07, 0.5, IRON_DK, 0, 0, 1);
+    // handrails along the bonnet
+    for (const sz of [-1, 1]) carBox(out, G, 5.0, 2.2, sz * 1.06, 1.7, 0.07, 0.07, BRASS, 0, 0, 1);
+    // cowcatcher: three slats a side, raked forward and down
+    for (const s of [-1, 1]) {
+      for (let i = 0; i < 3; i++) {
+        const wx = cx + (5.95 + i * 0.12) * Math.cos(yaw) - s * (0.3 + i * 0.16) * Math.sin(yaw);
+        const wz = cz + (5.95 + i * 0.12) * Math.sin(yaw) + s * (0.3 + i * 0.16) * Math.cos(yaw);
+        box(out, wx, 0.5 + i * 0.16, wz, 0.95, 0.09, 0.09, IRON_LT, yaw + s * 0.36, 0, 0.28, solid);
+      }
+    }
+    carBox(out, G, 6.4, 0.86, 0, 0.16, 0.16, 1.5, IRON_LT, 0, 0, 1);
+  }
+
+  // --- rear end: braced tailgate, steps, lantern, coupler
+  {
+    const backX = -4.3;
+    carBox(out, G, backX, 1.7, 0, 0.16, 1.2, 5.0, shadeColor(paint, 0.9, 0), 0, 0, 1);
+    // diagonal braces over the tailgate
+    for (const s of [-1, 1]) {
+      const wx = cx + backX * Math.cos(yaw) - 0 * Math.sin(yaw);
+      box(out, wx, 1.7, cz + backX * Math.sin(yaw), 0.1, 1.5, 0.12,
+        WOOD_DK, yaw, 0, s * 0.62, solid);
+    }
+    // vertical board joints so the tailgate reads as planks, not a slab
+    for (let i = -2; i <= 2; i++) carBox(out, G, backX - 0.07, 1.7, i * 1.05, 0.06, 1.14, 0.08, WOOD_DK, 0, 0, 1);
+    carBox(out, G, backX - 0.1, 2.3, 0, 0.1, 0.1, 5.0, IRON_LT, 0, 0, 1);
+    carBox(out, G, backX - 0.1, 1.16, 0, 0.1, 0.12, 5.0, IRON, 0, 0, 1);
+    // grab handle + steps down to the road
+    for (let i = 0; i < 3; i++) carBox(out, G, backX - 0.32, 0.42 + i * 0.3, 0, 0.5, 0.08, 1.5, WOOD_LT, 0, 0, 1);
+    for (const s of [-1, 1]) carBox(out, G, backX - 0.42, 0.8, s * 0.8, 0.14, 0.9, 0.14, IRON_DK, 0, 0, 1);
+    // rear lantern on a bracket
+    carBox(out, G, backX - 0.4, 2.5, 1.5, 0.5, 0.08, 0.08, IRON_DK, 0, 0, 1);
+    carBox(out, G, backX - 0.64, 2.3, 1.5, 0.22, 0.28, 0.22, BRASS, 0, 0, 1);
+    carBox(out, G, backX - 0.64, 2.3, 1.5, 0.26, 0.18, 0.26, LAMP, 0, 0, 0.95);
+    // coupler
+    carBox(out, G, backX - 0.5, 0.82, 0, 0.42, 0.18, 0.56, IRON_LT, 0, 0, 1);
+    carBox(out, G, backX - 0.74, 0.96, 0, 0.12, 0.3, 0.12, BRASS, 0, 0, 1);
+  }
+
+  // --- plank build deck (planks run along the wagon, iron banding on the rim)
+  // seam bed sits just under the planks and has no top face, so the painter
+  // sorter can never paint it over the boards
+  carBox(out, G, 0, 2.72, 0, CAR_HALF_W * 2 + 0.3, 0.1, CAR_HALF_D * 2 + 0.3, WOOD_SEAM, 0, 0, 1, { skipTop: true });
+  for (const sz of [-1, 1]) carBox(out, G, 0, 2.66, sz * 2.66, 8.6, 0.16, 0.22, WOOD_DK, 0, 0, 1);
+  for (const sx of [-1, 1]) carBox(out, G, sx * 4.06, 2.66, 0, 0.22, 0.16, 5.2, WOOD_DK, 0, 0, 1);
+  const plankW = (CAR_HALF_D * 2) / 7;
+  for (let i = 0; i < 7; i++) {
+    const pz = -CAR_HALF_D + plankW * (i + 0.5);
+    const tone = i % 2 ? WOOD : WOOD_LT;
+    carBox(out, G, 0, 2.8, pz, CAR_HALF_W * 2 + 0.06, 0.16, plankW - 0.05, tone, 0, 0, 1);
+  }
+  // iron banding + bolts around the deck rim
+  for (const sz of [-1, 1]) {
+    carBox(out, G, 0, 2.85, sz * (CAR_HALF_W * 0 + CAR_HALF_D - 0.04), CAR_HALF_W * 2, 0.05, 0.12, IRON_LT, 0, 0, 1);
+    for (let i = -2; i <= 2; i++) carBox(out, G, i * 1.5, 2.86, sz * (CAR_HALF_D - 0.04), 0.14, 0.06, 0.16, BRASS, 0, 0, 1);
+  }
+  for (const sx of [-1, 1]) {
+    carBox(out, G, sx * (CAR_HALF_W - 0.04), 2.85, 0, 0.12, 0.05, CAR_HALF_D * 2, IRON_LT, 0, 0, 1);
+    for (let i = -1; i <= 1; i++) carBox(out, G, sx * (CAR_HALF_W - 0.04), 2.86, i * 1.5, 0.16, 0.06, 0.14, BRASS, 0, 0, 1);
+  }
+
+  // --- interior floor + furniture (visible through the lit windows, or in x-ray)
   const icx = cx + INTERIOR.cx * Math.cos(yaw) - INTERIOR.cz * Math.sin(yaw);
   const icz = cz + INTERIOR.cx * Math.sin(yaw) + INTERIOR.cz * Math.cos(yaw);
   box(out, icx, 1.02, icz, INTERIOR.w, 0.08, INTERIOR.d, '#4a3b2c', yaw, 0, 0,
@@ -368,19 +507,24 @@ function buildCar(G, out) {
   }
 
   if (!xray) {
-    // roof deck + railing
-    carBox(out, G, 0, 2.78, 0, CAR_HALF_W * 2 + 0.1, 0.16, CAR_HALF_D * 2 + 0.1, '#8a6239');
-    carBox(out, G, 0, 2.86, 0, CAR_HALF_W * 2 - 0.3, 0.03, CAR_HALF_D * 2 - 0.3, '#9c7147');
-    for (let i = -3; i <= 3; i++) {
-      carBox(out, G, i * 1.1, 2.87, 0, 0.04, 0.02, CAR_HALF_D * 2 - 0.4, '#6f4f30');
+    // timber railings around the deck (posts, iron caps, braced corners)
+    carBox(out, G, 0, 3.02, CAR_HALF_D, CAR_HALF_W * 2, 0.3, 0.14, WOOD_LT, 0, 0, 1);
+    carBox(out, G, 0, 3.02, -CAR_HALF_D, CAR_HALF_W * 2, 0.3, 0.14, WOOD_LT, 0, 0, 1);
+    carBox(out, G, CAR_HALF_W, 3.02, 0, 0.14, 0.3, CAR_HALF_D * 2, WOOD_LT, 0, 0, 1);
+    carBox(out, G, -CAR_HALF_W, 3.02, 0, 0.14, 0.3, CAR_HALF_D * 2, WOOD_LT, 0, 0, 1);
+    for (const sz of [-1, 1]) {
+      for (let i = -2; i <= 2; i++) {
+        carBox(out, G, i * 1.55, 3.12, sz * CAR_HALF_D, 0.16, 0.42, 0.16, WOOD_DK, 0, 0, 1);
+        carBox(out, G, i * 1.55, 3.36, sz * CAR_HALF_D, 0.2, 0.05, 0.2, IRON, 0, 0, 1);
+      }
+      carBox(out, G, 0, 3.2, sz * CAR_HALF_D, CAR_HALF_W * 2, 0.05, 0.16, IRON_LT, 0, 0, 1);
     }
     for (const sx of [-1, 1]) {
-      carBox(out, G, sx * CAR_HALF_W, 3.02, 0, 0.14, 0.36, CAR_HALF_D * 2, '#b08a5a');
-      carBox(out, G, 0, 3.02, sx * CAR_HALF_D, CAR_HALF_W * 2, 0.36, 0.14, '#b08a5a');
-      for (let i = -2; i <= 2; i++) {
-        carBox(out, G, sx * CAR_HALF_W, 3.02, i * 1.25, 0.2, 0.5, 0.2, '#6b7280');
-        carBox(out, G, i * 1.55, 3.02, sx * CAR_HALF_D, 0.2, 0.5, 0.2, '#6b7280');
+      for (let i = -1; i <= 1; i++) {
+        carBox(out, G, sx * CAR_HALF_W, 3.12, i * 1.35, 0.16, 0.42, 0.16, WOOD_DK, 0, 0, 1);
+        carBox(out, G, sx * CAR_HALF_W, 3.36, i * 1.35, 0.2, 0.05, 0.2, IRON, 0, 0, 1);
       }
+      carBox(out, G, sx * CAR_HALF_W, 3.2, 0, 0.16, 0.05, CAR_HALF_D * 2, IRON_LT, 0, 0, 1);
     }
     // modules
     car.grid.cells.forEach((m, i) => {
@@ -1448,6 +1592,13 @@ function drawOverlays(g, ctx, view) {
       ctx.stroke();
     }
   }
+}
+
+// Debug/test helper: the finalized face list of the wagon alone.
+export function carFaces(g) {
+  const out = [];
+  buildCar(g, out);
+  return finalizeFaces(out);
 }
 
 export function draw(g, ctx, view) {

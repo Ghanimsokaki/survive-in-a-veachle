@@ -20,9 +20,13 @@ function rotPt(x, y, z, rx, ry, rz) {
     ny = ty; nz = tz;
   }
   if (ry) {
+    // Same sense as the layout transform used everywhere else
+    // (carBox / quad / prismZ): world = (lx·cos − lz·sin, lx·sin + lz·cos).
+    // Getting this backwards made every yawed box spin the other way round,
+    // so a turning vehicle looked sheared apart.
     const c = Math.cos(ry), s = Math.sin(ry);
-    const tx = nx * c + nz * s;
-    const tz = -nx * s + nz * c;
+    const tx = nx * c - nz * s;
+    const tz = nx * s + nz * c;
     nx = tx; nz = tz;
   }
   return [nx, ny, nz];

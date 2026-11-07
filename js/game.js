@@ -132,7 +132,7 @@ export const G = {
       hull: 500, hullMax: 500, power: 120,
       grid: { cols: 6, rows: 4, cell: 26, cells: new Array(24).fill(null) },
       interior: new Array(6).fill(null),
-      paint: '#35506b', paintDark: '#2f4a66', paintTrim: '#3b5875', paintId: 'bay',
+      paint: '#7a5334', paintDark: '#68452a', paintTrim: '#8d6440', paintId: 'timber',
       raft: false, engine: false, anchors: 1, anchorT: 0,
     };
     this.player = { x: 0, y: 0, face: 0, onFoot: false, walkPhase: 0, moving: false, hp: 100, maxHp: 100 };
@@ -256,8 +256,8 @@ export const G = {
         const it = id ? INTERIOR_BY_ID[id] : null;
         return it ? { id: it.id, kind: it.id, name: it.name, icon: it.icon, stat: it.stat } : null;
       }),
-      paint: car.paint || '#35506b', paintDark: car.paintDark || '#2f4a66',
-      paintTrim: car.paintTrim || '#3b5875', paintId: car.paintId || 'bay',
+      paint: car.paint || '#7a5334', paintDark: car.paintDark || '#68452a',
+      paintTrim: car.paintTrim || '#8d6440', paintId: car.paintId || 'timber',
       raft: !!car.raft, engine: !!car.engine,
       anchors: car.anchors || 0, anchorT: 0,
     };
@@ -1671,6 +1671,18 @@ export const G = {
     const steerSpeed = U.clamp(Math.abs(car.speed) / 90, 0, 1);
     car.angle += steer * this.stats.turn * steerSpeed * dt * Math.sign(car.speed || 1);
     car.steerFront = U.lerp(car.steerFront, steer * 0.42, Math.min(1, 10 * dt));
+    // wheels roll with the distance travelled (world units / wheel radius)
+    car.wheelSpin = (car.wheelSpin || 0) + (car.speed * 0.05 / 0.98) * dt;
+    // the stack puffs while the wagon is rolling
+    if (Math.abs(car.speed) > 12 && Math.random() < dt * 7) {
+      this.particles.push({
+        x: car.x + Math.cos(car.angle) * 100 + U.rand(-6, 6),
+        y: car.y + Math.sin(car.angle) * 100 + U.rand(-6, 6),
+        vx: Math.cos(car.angle) * car.speed * 0.25 + U.rand(-14, 14),
+        vy: Math.sin(car.angle) * car.speed * 0.25 + U.rand(-14, 14),
+        life: 1.1, maxlife: 1.1, color: Math.random() < 0.5 ? '#6b7280' : '#9ca3af', size: 3 + Math.random() * 3,
+      });
+    }
     const nx = car.x + Math.cos(car.angle) * car.speed * dt;
     const ny = car.y + Math.sin(car.angle) * car.speed * dt;
     this.run.distance += Math.abs(car.speed) * dt * 0.02;
