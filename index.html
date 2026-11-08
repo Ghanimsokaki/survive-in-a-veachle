@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Home on Wheels — Jakarta to Washington</title>
+<meta name="description" content="Build a house on your car, loot the ruins of the world, craft 1000+ items, cross the ocean and survive the army." />
+<link rel="stylesheet" href="css/style.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚙</text></svg>" />
+</head>
+<body>
+<div id="app">
+  <canvas id="game"></canvas>
+
+  <!-- ================= HUD ================= -->
+  <div id="hud" class="hud hidden">
+    <div class="hud-left">
+      <div class="zone-box">
+        <div class="zone-name" id="zoneName">Java</div>
+        <div class="zone-sub" id="zoneSub">Indonesia</div>
+        <div class="objective" id="objective">Objective</div>
+      </div>
+      <div class="bars">
+        <div class="bar">
+          <span class="bar-label">HULL</span>
+          <div class="bar-track"><div class="bar-fill hull" id="hullFill"></div></div>
+          <span class="bar-text" id="hullText">400</span>
+        </div>
+        <div class="bar">
+          <span class="bar-label">POWER</span>
+          <div class="bar-track"><div class="bar-fill power" id="powerFill"></div></div>
+          <span class="bar-text" id="powerText">100</span>
+        </div>
+        <div class="weapon-line" id="weaponLine">🔫 Salvaged Pipe Pistol</div>
+        <div id="craftBox" class="craft-box hidden">
+          <span id="craftIcon">🛠️</span>
+          <div class="craft-track"><div id="craftFill"></div></div>
+          <span id="craftLabel">crafting…</span>
+        </div>
+        <div id="anchorChip" class="anchor-chip hidden">⚓ <b id="anchorCount">0</b> · Y</div>
+      </div>
+    </div>
+
+    <div class="hud-right">
+      <canvas id="minimap" width="200" height="146"></canvas>
+      <div class="stat-row">
+        <div class="stat" title="Cash"><span>🪙</span><b id="statCash">0</b></div>
+        <div class="stat" title="Crew / berths"><span>👥</span><b id="statCrew">0/1</b></div>
+        <div class="stat" title="Home score"><span>🏠</span><b id="statHome">0</b></div>
+        <div class="stat" title="Drones"><span>🛸</span><b id="statDrone">0</b></div>
+      </div>
+      <div class="stat-row small">
+        <div class="stat" title="Zone tier"><span>☠️</span><b id="statTier">1</b></div>
+        <div class="stat" title="Station level"><span>🛠️</span><b id="statStation">Field Kit</b></div>
+        <div class="stat" title="Raft / ship engine"><span>🛶</span><b id="statRaft">—</b></div>
+      </div>
+      <div id="waveBox" class="wave-box hidden">
+        <div id="waveLabel">WAVE 1 / 5</div>
+        <div class="wave-track"><div id="waveFill"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tornadoBox" class="boss-box tornado-box hidden">
+    <div class="boss-name">🌪️ ANOMALY TORNADO</div>
+    <div class="boss-track"><div id="tornadoFill"></div></div>
+    <div class="tornado-hint" id="tornadoHint">Press Y to anchor</div>
+  </div>
+
+  <div id="bossBox" class="boss-box hidden">
+    <div class="boss-name">GENERAL'S TANK</div>
+    <div class="boss-track"><div id="bossFill"></div></div>
+  </div>
+
+  <div id="resbar" class="resbar hidden"></div>
+  <div id="buffs" class="buffs hidden"></div>
+  <div id="prompt" class="prompt hidden"></div>
+  <div id="toasts" class="toasts"></div>
+
+  <div id="banner" class="banner hidden">
+    <h2 id="bannerTitle"></h2>
+    <p id="bannerText"></p>
+  </div>
+
+  <!-- ================= hotbar ================= -->
+  <div id="hotbar" class="hotbar hidden">
+    <button data-act="craft" title="Crafting (C)"><span>🛠️</span>Craft<kbd>C</kbd></button>
+    <button data-act="build" title="Build mode (B)"><span>🏠</span>Build<kbd>B</kbd></button>
+    <button data-act="foot" title="Get out / get back in (G)"><span>🚶</span>Walk<kbd>G</kbd></button>
+    <button data-act="anchor" title="Deploy an anomaly anchor (Y)"><span>⚓</span>Anchor<kbd>Y</kbd></button>
+    <button data-act="crew" title="Crew (N)"><span>👥</span>Crew<kbd>N</kbd></button>
+    <button data-act="items" title="Satchel (I)"><span>🎒</span>Items<kbd>I</kbd></button>
+    <button data-act="route" title="Route (M)"><span>🗺️</span>Route<kbd>M</kbd></button>
+    <button data-act="sound" title="Sound on / off (O)" id="soundBtn"><span>🔊</span>Sound<kbd>O</kbd></button>
+    <button data-act="help" title="Help (H)"><span>❓</span>Help<kbd>H</kbd></button>
+  </div>
+
+  <!-- ================= build tray ================= -->
+  <div id="buildTray" class="build-tray hidden">
+    <div class="tray-head">
+      <div>
+        <b>BUILD MODE</b>
+        <span class="tray-hint" id="trayHint">Pick a module, then click a cell on the car.</span>
+      </div>
+      <div class="tray-tabs">
+        <button id="trayRoof" class="active">🛖 Roof</button>
+        <button id="trayInterior">🪑 Interior <kbd>Tab</kbd></button>
+        <div class="tray-paints" id="trayPaints" title="Car paint"></div>
+      </div>
+      <button id="buildExit">Done (B)</button>
+    </div>
+    <div class="tray-items" id="trayItems"></div>
+  </div>
+
+  <!-- ================= panels ================= -->
+  <div id="panelLayer" class="panel-layer hidden">
+    <div class="panel" id="panel">
+      <div class="panel-head">
+        <h2 id="panelTitle">CRAFTING</h2>
+        <div class="panel-head-right">
+          <span id="panelSub" class="panel-sub"></span>
+          <button id="panelClose" class="icon-btn" title="Close (Esc)">✕</button>
+        </div>
+      </div>
+      <div class="panel-body" id="panelBody"></div>
+    </div>
+  </div>
+
+  <!-- ================= start menu ================= -->
+  <div id="menu" class="overlay menu">
+    <div class="menu-card">
+      <div class="logo">HOME<span>on</span>WHEELS</div>
+      <div class="tagline">JAKARTA → WASHINGTON D.C. · 8,000 km of ruin, salt water and bad company</div>
+      <p class="blurb">
+        The world ended on a Tuesday. Your family is gone, the house is ash — but the car still runs.
+        Weld a home onto the roof, loot the ruins, craft <b>1,000+</b> weapons, turrets, drones and rooms,
+        recruit survivors, buy a raft and a ship engine at the docks, and cross three oceans.
+        In America, the army is waiting.
+      </p>
+      <div class="menu-buttons">
+        <button id="btnContinue" class="primary hidden">CONTINUE</button>
+        <button id="btnNew" class="primary">NEW GAME</button>
+        <button id="btnHelpMenu" class="ghost">HOW TO PLAY</button>
+        <a id="btnSkyuss" class="ghost game-link" href="skyuss/index.html">🛸 PLAY SKYUSS →</a>
+        <a id="supportLink" class="ghost support-link" hidden>♥ Support</a>
+      </div>
+      <div class="menu-meta" id="saveMeta"></div>
+      <div class="key-list">
+        <span><kbd>W A S D</kbd> drive / walk</span>
+        <span><kbd>Mouse</kbd> aim</span>
+        <span><kbd>Click</kbd> shoot</span>
+        <span><kbd>E</kbd> loot / talk / shop</span>
+        <span><kbd>T</kbd> depart</span>
+        <span><kbd>B</kbd> build · <kbd>Tab</kbd> roof/interior</span>
+        <span><kbd>G</kbd> get out / get in</span>
+        <span><kbd>Y</kbd> anchor vs tornado</span>
+        <span><kbd>C</kbd> craft</span>
+        <span><kbd>Esc</kbd> close</span>
+      </div>
+      <div class="credits">Every recipe, ruin and survivor is generated locally. Progress saves in your browser.</div>
+    </div>
+  </div>
+
+  <!-- ================= end screen ================= -->
+  <div id="endScreen" class="overlay hidden">
+    <div class="end-card">
+      <div id="endTitle" class="end-title">WRECKED</div>
+      <div id="endSub" class="end-sub"></div>
+      <div id="endStats" class="end-stats"></div>
+      <div class="menu-buttons">
+        <button id="btnRetry" class="primary">RETRY THIS LEG</button>
+        <button id="btnEndMenu" class="ghost">MAIN MENU</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="fps" class="fps">60</div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

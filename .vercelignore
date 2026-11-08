@@ -1,0 +1,6 @@
+# nothing here is served to a player
+node_modules
+shots
+models
+image-search
+.git

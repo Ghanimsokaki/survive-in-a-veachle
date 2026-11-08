@@ -1,0 +1,244 @@
+{
+  "_note": "Reference hulls used to guess what an unnamed model is. Lengths are the widely quoted figures in metres; sources disagree by a few percent (and some drawings by much more), so the matcher reports a tolerance band instead of an exact answer. Add your own entries freely \u2014 anything with `name`, `length` and optional `aliases`/`span`/`height` works.",
+  "hulls": [
+    {
+      "name": "Constitution-class (NCC-1701, TOS)",
+      "length": 289,
+      "span": 127,
+      "height": 72,
+      "era": "2250s",
+      "aliases": [
+        "enterprise",
+        "tos",
+        "jeffries"
+      ]
+    },
+    {
+      "name": "Constitution-class refit (NCC-1701, films)",
+      "length": 305,
+      "span": 141,
+      "height": 71,
+      "era": "2270s",
+      "aliases": [
+        "refit",
+        "motion picture"
+      ]
+    },
+    {
+      "name": "Crossfield-class",
+      "length": 750,
+      "span": 190,
+      "height": 90,
+      "era": "2250s",
+      "aliases": [
+        "discovery",
+        "walker"
+      ]
+    },
+    {
+      "name": "NX-class (NX-01)",
+      "length": 225,
+      "span": 136,
+      "height": 60,
+      "era": "2150s",
+      "aliases": [
+        "enterprise nx"
+      ]
+    },
+    {
+      "name": "Miranda-class",
+      "length": 232,
+      "span": 232,
+      "height": 58,
+      "era": "2280s",
+      "aliases": [
+        "reliant"
+      ]
+    },
+    {
+      "name": "Excelsior-class",
+      "length": 511,
+      "span": 186,
+      "height": 78,
+      "era": "2280s",
+      "aliases": [
+        "excelsior",
+        "sulu"
+      ]
+    },
+    {
+      "name": "Ambassador-class",
+      "length": 526,
+      "span": 320,
+      "height": 105,
+      "era": "2320s",
+      "aliases": [
+        "enterprise c"
+      ]
+    },
+    {
+      "name": "Galaxy-class (NCC-1701-D)",
+      "length": 641,
+      "span": 470,
+      "height": 137,
+      "era": "2360s",
+      "aliases": [
+        "enterprise d",
+        "tng",
+        "ncc1701d"
+      ]
+    },
+    {
+      "name": "Nebula-class",
+      "length": 442,
+      "span": 318,
+      "height": 130,
+      "era": "2360s",
+      "aliases": [
+        "nebula"
+      ]
+    },
+    {
+      "name": "Sovereign-class (NCC-1701-E)",
+      "length": 685,
+      "span": 244,
+      "height": 88,
+      "era": "2370s",
+      "aliases": [
+        "enterprise e",
+        "sovereign"
+      ]
+    },
+    {
+      "name": "Intrepid-class (Voyager)",
+      "length": 344,
+      "span": 133,
+      "height": 66,
+      "era": "2370s",
+      "aliases": [
+        "voyager",
+        "intrepid"
+      ]
+    },
+    {
+      "name": "Akira-class",
+      "length": 464,
+      "span": 275,
+      "height": 87,
+      "era": "2370s",
+      "aliases": [
+        "akira"
+      ]
+    },
+    {
+      "name": "Defiant-class",
+      "length": 120,
+      "span": 90,
+      "height": 26,
+      "era": "2370s",
+      "aliases": [
+        "defiant",
+        "sisko"
+      ]
+    },
+    {
+      "name": "Klingon D7 / K't'inga",
+      "length": 228,
+      "span": 160,
+      "height": 60,
+      "era": "2260s",
+      "aliases": [
+        "d7",
+        "ktinga",
+        "klingon"
+      ]
+    },
+    {
+      "name": "Klingon Negh'Var",
+      "length": 682,
+      "span": 780,
+      "height": 200,
+      "era": "2370s",
+      "aliases": [
+        "neghvar",
+        "klingon warship"
+      ]
+    },
+    {
+      "name": "Romulan D'deridex",
+      "length": 1041,
+      "span": 772,
+      "height": 285,
+      "era": "2360s",
+      "aliases": [
+        "dderidex",
+        "warbird"
+      ]
+    },
+    {
+      "name": "Borg cube",
+      "length": 3000,
+      "span": 3000,
+      "height": 3000,
+      "era": "2360s",
+      "aliases": [
+        "borg"
+      ]
+    },
+    {
+      "name": "Generic courier / fighter (game scale)",
+      "length": 30,
+      "span": 14,
+      "height": 9,
+      "era": "\u2014",
+      "aliases": [
+        "courier",
+        "fighter"
+      ]
+    },
+    {
+      "name": "Generic cruiser (game scale)",
+      "length": 120,
+      "span": 55,
+      "height": 30,
+      "era": "\u2014",
+      "aliases": [
+        "cruiser"
+      ]
+    },
+    {
+      "name": "Generic dreadnought (game scale)",
+      "length": 260,
+      "span": 120,
+      "height": 60,
+      "era": "\u2014",
+      "aliases": [
+        "dreadnought",
+        "battleship"
+      ]
+    },
+    {
+      "name": "Dreadnought-class (USS Vengeance)",
+      "length": 1450,
+      "span": null,
+      "height": null,
+      "era": "2250s (Kelvin timeline)",
+      "aliases": [
+        "vengeance",
+        "khan",
+        "dreadnought"
+      ]
+    },
+    {
+      "name": "Constitution-class (Kelvin timeline, 725 m)",
+      "length": 725,
+      "span": null,
+      "height": null,
+      "era": "2258",
+      "aliases": [
+        "kelvin enterprise",
+        "abrams"
+      ]
+    }
+  ]
+}

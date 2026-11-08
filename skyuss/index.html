@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>SKYUSS — an ocean of clouds</title>
+<meta name="description" content="Pilot a modular USS Enterprise across an endless sea of clouds, build sky fortresses, and survive siege fleets." />
+<link rel="stylesheet" href="css/sky.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛸</text></svg>" />
+</head>
+<body>
+<canvas id="sky"></canvas>
+
+<div id="hud" class="hud hidden">
+  <!-- top left -->
+  <div class="hud-tl">
+    <div class="brand"><b>SKYUSS</b><span>cloud sea expedition</span></div>
+    <div class="objective" id="objective">Scavenge derelicts…</div>
+    <div class="siege" id="siegeLine">Next siege in <b>150</b>s</div>
+    <div class="sector" id="sectorLine">SECTOR 0,1 · 1 charted</div>
+  </div>
+
+  <!-- top right: radar -->
+  <div class="hud-tr">
+    <canvas id="radar" width="200" height="200"></canvas>
+    <div class="radar-legend"><span class="dot e"></span>hostile <span class="dot i"></span>island <span class="dot f"></span>fort</div>
+  </div>
+
+  <!-- bottom left: ship systems -->
+  <!-- ===== chrome: brand left, wallet right, panel rail down the side ===== -->
+  <div class="topbar" id="topBar">
+    <div class="brand"><span class="brand-dot"></span><b>SKYUSS</b><i>cloud-sea expedition</i></div>
+    <div class="wallet">
+      <button class="chip-currency" data-act="yard" title="Credits — bounties and photo contracts">
+        <span>🪙</span><b id="chipCredits">250</b>
+      </button>
+      <button class="chip-currency shard" data-act="shop" title="Shards — earned from photo contracts and dreadnought kills">
+        <span>◆</span><b id="chipShards">0</b>
+      </button>
+      <button class="chip-plus" data-act="shop" title="Store (M)">+</button>
+    </div>
+  </div>
+
+  <div class="side-rail" id="sideRail">
+    <button data-act="shop" title="Store (M)"><span>🛒</span><i>Store</i></button>
+    <button data-act="yard" title="Shipyard (Y)"><span>🛠</span><i>Yard</i></button>
+    <button data-act="tiers" title="Refit (U)"><span>🛸</span><i>Refit</i></button>
+    <button data-act="build" title="Fortress (B)"><span>🏗</span><i>Fort</i></button>
+    <button data-act="help" title="Help (H)"><span>❔</span><i>Help</i></button>
+  </div>
+
+  <div class="hud-bl">
+    <div class="bar">
+      <span class="bar-label">HULL</span>
+      <div class="bar-track"><div class="bar-fill hull" id="hullFill"></div></div>
+      <span class="bar-text" id="hullText">400</span>
+    </div>
+    <div class="bar">
+      <span class="bar-label">SHIELD</span>
+      <div class="bar-track"><div class="bar-fill shield" id="shieldFill"></div></div>
+      <span class="bar-text" id="shieldText">0</span>
+    </div>
+    <div class="bar">
+      <span class="bar-label">ENERGY</span>
+      <div class="bar-track"><div class="bar-fill energy" id="energyFill"></div></div>
+      <span class="bar-text" id="energyText">100</span>
+    </div>
+    <div class="speed-line">
+      <span id="speedText">0 m/s</span>
+      <span class="warp" id="warpLine">WARP READY</span>
+    </div>
+  </div>
+
+  <!-- bottom right: resources -->
+  <div class="hud-br">
+    <div class="res"><span>🟦</span><b id="resTi">0</b><i>Titanium</i></div>
+    <div class="res"><span>🔷</span><b id="resDi">0</b><i>Dilithium</i></div>
+    <div class="res"><span>💠</span><b id="resMx">0</b><i>Matrix</i></div>
+    <div class="res"><span>🪙</span><b id="resCr">250</b><i>Credits</i></div>
+    <div class="cargo">
+      <span>CARGO</span>
+      <div class="cargo-track"><div id="cargoFill"></div></div>
+      <b id="cargoText">0/240</b>
+    </div>
+  </div>
+
+  <div id="camBadge" class="cam-badge hidden">
+    <b>FREE CAMERA</b><span><kbd>WASD</kbd> fly · <kbd>Shift</kbd> fast · drag look · <kbd>T</kbd> photo · <kbd>G</kbd> back</span>
+  </div>
+
+  <!-- centre reticle -->
+  <div class="reticle" id="reticle">
+    <div class="cross"></div>
+    <div class="lock hidden" id="lockRing"><span>LOCK</span></div>
+    <div class="aim-mode" id="aimMode">AUTO</div>
+    <div class="abyss hidden" id="abyssWarn">⚠ PULL UP — THE ABYSS</div>
+  </div>
+
+  <!-- bottom centre hotbar -->
+  <div class="hotbar" id="hotbar">
+    <button data-act="fire"><span>🔫</span>Phasers<kbd>LMB</kbd></button>
+    <button data-act="torpedo"><span>🚀</span>Torpedo<kbd>RMB</kbd></button>
+    <button data-act="warp"><span>💫</span>Warp<kbd>F</kbd></button>
+    <button data-act="interact"><span>🛰️</span>Tractor<kbd>E</kbd></button>
+    <button data-act="build"><span>🏗️</span>Fortress<kbd>B</kbd></button>
+    <button data-act="tiers"><span>🛸</span>Refit<kbd>U</kbd></button>
+    <button data-act="style" title="Toggle voxel / sci-fi fortress art"><span>🧱</span>Style<kbd>V</kbd></button>
+    <button data-act="aim" title="Toggle auto-lock / fully manual aim"><span>🎯</span>Aim<kbd>L</kbd></button>
+    <button data-act="sound"><span id="soundIcon">🔊</span>Sound<kbd>O</kbd></button>
+    <button data-act="help"><span>❔</span>Help<kbd>H</kbd></button>
+  </div>
+
+  <div id="dmgFlash" class="dmg-flash"></div>
+  <div id="toasts" class="toasts"></div>
+  <div id="banner" class="banner hidden"><b id="bannerTitle"></b><span id="bannerText"></span></div>
+  <div id="prompt" class="prompt hidden"></div>
+</div>
+
+<!-- ============================ refit panel ============================ -->
+<div id="panelLayer" class="panel-layer hidden">
+  <div class="panel" id="panelTiers">
+    <header>
+      <h2>🛸 &nbsp;ENTERPRISE REFIT</h2>
+      <button class="panel-close" data-action="close">✕</button>
+    </header>
+    <p class="panel-sub">Structural upgrades rebuild the ship mesh in real time — saucer, nacelles, deflector, weapons.</p>
+    <div class="tier-rows" id="tierRows"></div>
+    <button class="bulk-build bulk-upgrade" data-action="upgradeall">⚡ UPGRADE ALL — install every refit you can afford</button>
+    <div class="settings-row">
+      <button class="chip" data-action="style" id="styleChip">🏛️ Fortress: SCI-FI</button>
+      <button class="chip" data-action="aim" id="aimChip">🎯 Weapons: AUTO-LOCK</button>
+      <button class="chip" data-action="touch" id="touchChip">📱 Touch: AUTO</button>
+    </div>
+    <p class="panel-note">Refit costs are drawn from the <b>fortress stores</b> — fly home and deposit salvage first.</p>
+  </div>
+
+  <div class="panel" id="panelBuild">
+    <header>
+      <h2>🏗️ &nbsp;SKY FORTRESS</h2>
+      <button class="panel-close" data-action="close">✕</button>
+    </header>
+    <p class="panel-sub">Sleek modular platforms on a 12×12 holographic grid. Pieces must touch an existing deck.</p>
+    <div class="piece-grid" id="pieceGrid"></div>
+    <button class="bulk-build" data-action="buildall">⚡ BUILD ALL — fill every free deck cell with the selected piece</button>
+    <div class="fort-stats" id="fortStats"></div>
+    <p class="panel-note"><b>Click</b> a cell on the grid to build · <b>Right click</b> recycles · <b>1–8</b> picks a piece · <b>B</b> exits.</p>
+  </div>
+
+  <div class="panel" id="panelYard">
+    <header>
+      <h2>🛠️ &nbsp;SHIPYARD &amp; PHOTO DESK</h2>
+      <button class="panel-close" data-action="close">✕</button>
+    </header>
+    <p class="panel-sub">Credits only come from flying: bounties on hostiles, and <b>photo contracts</b> for anything nobody has photographed yet.</p>
+    <div class="yard-credits">Balance <b id="yardCredits">0</b> ¢</div>
+    <div class="yard-ships" id="yardShips"></div>
+    <div class="yard-contracts">
+      <h3>📷 Photo contracts</h3>
+      <div id="yardContracts"></div>
+    </div>
+    <p class="panel-note"><b>G</b> free camera · <b>T</b> shoot &amp; sell the frame · <b>Y</b> closes. Buys are permanent and saved.</p>
+  </div>
+
+  <div class="panel" id="panelShop">
+    <header>
+      <h2>🛒 &nbsp;STORE</h2>
+      <button class="panel-close" data-action="close">✕</button>
+    </header>
+    <p class="panel-sub">Consumables cost <b>credits ¢</b>, earned by flying. Skins cost <b>shards ◆</b>, which drop only from paid photo contracts and dreadnought kills.</p>
+    <div class="shop-wallet">Wallet &nbsp;<b id="shopCredits">0</b> ¢ &nbsp;·&nbsp; <b id="shopShards">0</b> ◆</div>
+    <div class="shop-grid" id="shopItems"></div>
+    <p class="panel-note" id="shopNote"></p>
+  </div>
+
+  <div class="panel" id="panelHelp">
+    <header>
+      <h2>❔ &nbsp;FLIGHT MANUAL</h2>
+      <button class="panel-close" data-action="close">✕</button>
+    </header>
+    <div class="help-grid">
+      <section>
+        <h3>Fly</h3>
+        <ul>
+          <li><b>W / S</b> throttle forward / retro</li>
+          <li><b>A / D</b> yaw · <b>↑ / ↓</b> pitch</li>
+          <li><b>Space / C</b> climb / dive</li>
+          <li><b>Shift</b> impulse boost (burns energy)</li>
+          <li><b>F</b> warp jump home to the fortress (250 m out, nose on it)</li>
+          <li><b>Right-drag</b> orbit camera · <b>Wheel</b> zoom · <b>G</b> free camera · <b>T</b> photo</li>
+        </ul>
+      </section>
+      <section>
+        <h3>Fight</h3>
+        <ul>
+          <li><b>LMB (hold)</b> phasers — auto-lock tracks and leads the target</li>
+          <li><b>RMB click</b> photon torpedo (damage ×4, splash) · <b>RMB drag</b> orbits</li>
+          <li>Fortress turrets fire on their own</li>
+          <li>Shields absorb first and regenerate after 4 s</li>
+        </ul>
+      </section>
+      <section>
+        <h3>Live in the sky</h3>
+        <ul>
+          <li><b>E</b> strip a derelict / survey an island / deposit at the fort</li>
+          <li><b>G</b> free camera + <b>T</b> shoots the frame: new subjects pay a photo contract</li>
+          <li><b>Y</b> shipyard: buy the Aurora-class courier with credits · <b>M</b> store</li>
+          <li><b>B</b> fortress build mode · <b>U</b> Enterprise refit</li>
+          <li>Below the cloud line the <b>abyss</b> tears the hull apart</li>
+          <li>Sieges hit the fortress every ~3 minutes</li>
+        </ul>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ title ============================ -->
+<div id="menu" class="menu">
+  <div class="menu-card">
+    <h1>SKY<span>USS</span></h1>
+    <p class="tagline">The ground is gone. An endless ocean of clouds, a modular starship, and fortresses that must hold the sky.</p>
+    <div class="menu-actions">
+      <button id="btnNew" class="primary">LAUNCH EXPEDITION</button>
+      <button id="btnResume" class="ghost hidden">RESUME</button>
+    </div>
+    <ul class="menu-keys">
+      <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> fly</li>
+      <li><kbd>Space</kbd><kbd>C</kbd> climb / dive</li>
+      <li><kbd>LMB</kbd> phasers · <kbd>RMB</kbd> torpedo · <kbd>RMB drag</kbd> camera</li>
+      <li><kbd>F</kbd> warp home · <kbd>E</kbd> tractor · <kbd>B</kbd> fortress · <kbd>U</kbd> refit</li>
+      <li><kbd>G</kbd> free camera · <kbd>T</kbd> photo · <kbd>Y</kbd> shipyard</li>
+    </ul>
+    <a class="back" href="../index.html">← back to Home on Wheels</a>
+    <a id="supportLink" class="support-link" hidden>♥ Support</a>
+  </div>
+</div>
+
+<div id="fatal" class="fatal hidden">
+  <h2>WebGL unavailable</h2>
+  <p>SKYUSS needs a WebGL2-capable browser. Try Chrome, Edge, Firefox or Safari with hardware acceleration on.</p>
+</div>
+
+<script type="module" src="../support-link.js"></script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
