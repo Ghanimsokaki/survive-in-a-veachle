@@ -10,6 +10,8 @@ import { FORT, FORT_PIECES, SHIP_UPGRADES, WORLD, CREDITS, PHOTO_CONTRACTS, SHIP
 import { buildAurora } from '../skyuss/js/aurora.js';
 import { buildDreadnought } from '../skyuss/js/dreadnought.js';
 import { buildReaverDreadnought } from '../skyuss/js/reaver.js';
+import { SkyPortal, detectPortal } from '../skyuss/js/portal.js';
+import { check as deployCheck, assetRefs, importSpecs, ENTRIES } from './deploy-check.mjs';
 import { parseOBJ, objMesh, loadPremium, loadCommittedHull, HULL_MODELS, PREMIUM_CANDIDATES, PREMIUM_FILES } from '../skyuss/js/premium.js';
 import { structureOBJ, structureGLB, shapeOf, matchClasses, reportFile, knownModel, knownList, identityBlock } from '../skyuss/tools/model-report.mjs';
 import { resolveUrl, treeUrl, diagnose, human, LIBRARY, DEFAULT_REPO, sha256File } from '../skyuss/tools/fetch-models.mjs';
@@ -967,6 +969,94 @@ section('effects bus + audio module');
 }
 
 // ---------------------------------------------- aim modes, settings, touch UI
+section('portal money hooks (inert without an SDK)');
+{
+  assert(detectPortal(undefined) === null, 'no window means no portal, not a crash');
+  assert(detectPortal({}) === null, 'an empty page has no portal');
+  assert(detectPortal({ CrazyGames: { SDK: {} } }) === 'crazygames', 'the CrazyGames SDK is recognised');
+  assert(detectPortal({ PokiSDK: { init() {} } }) === 'poki', 'the Poki SDK is recognised');
+
+  // the normal case: the game runs on a plain static host
+  const bare = new SkyPortal({ scope: {} });
+  assert((await bare.init()) === 'none' && bare.ready === false, 'with no SDK it initialises to "none"');
+  assert(bare.status() === 'none', 'and reports it');
+  bare.gameplayStart(); bare.gameplayStop(); bare.happytime();
+  assert(bare.last === 'happytime', 'start/stop/happytime are safe no-ops');
+  assert((await bare.commercialBreak()) === false, 'a commercial break does nothing without a portal');
+  assert((await bare.rewardedBreak()) === false, 'and no reward is ever granted');
+  assert(bare.loadingProgress(1) === bare, 'loading progress is chainable and harmless');
+
+  // a fake CrazyGames SDK: the calls must be forwarded, in order
+  const calls = [];
+  const cg = new SkyPortal({
+    scope: {
+      CrazyGames: {
+        SDK: {
+          init: async () => calls.push('init'),
+          game: {
+            gameplayStart: () => calls.push('start'),
+            gameplayStop: () => calls.push('stop'),
+            happytime: () => calls.push('happy'),
+            loadingStart: () => calls.push('loading'),
+            loadingStop: () => calls.push('loaded'),
+          },
+          ad: { requestAd: async (t) => { calls.push(`ad:${t}`); return t === 'rewarded'; } },
+        },
+      },
+    },
+  });
+  assert((await cg.init()) === 'crazygames' && cg.ready, 'the CrazyGames SDK initialises');
+  cg.gameplayStart(); cg.gameplayStart();
+  assert(calls.filter((c) => c === 'start').length === 1, 'starting twice only reports once');
+  cg.gameplayStop(); cg.gameplayStop();
+  assert(calls.filter((c) => c === 'stop').length === 1, 'and stopping twice only reports once');
+  assert((await cg.commercialBreak()) === true && calls.includes('ad:midgame'), 'a midgame ad is requested at a boundary');
+  assert((await cg.rewardedBreak()) === true && calls.includes('ad:rewarded'), 'a rewarded ad reports the reward');
+
+  // a Poki-shaped SDK
+  const pokiCalls = [];
+  const poki = new SkyPortal({
+    scope: {
+      PokiSDK: {
+        init: async () => pokiCalls.push('init'),
+        gameplayStart: () => pokiCalls.push('start'),
+        gameplayStop: () => pokiCalls.push('stop'),
+        commercialBreak: async () => pokiCalls.push('ad'),
+        rewardedBreak: async () => true,
+        gameLoadingFinished: () => pokiCalls.push('loaded'),
+      },
+    },
+  });
+  assert((await poki.init()) === 'poki', 'the Poki SDK initialises');
+  poki.gameplayStart(); poki.gameplayStop(); poki.loadingProgress(1);
+  assert(pokiCalls.join(',') === 'init,start,stop,loaded', 'Poki gets start/stop and the loading-finished call');
+  assert((await poki.commercialBreak()) === true, 'Poki commercial breaks resolve');
+
+  // a broken SDK must never break the game
+  const broken = new SkyPortal({
+    scope: {
+      CrazyGames: {
+        SDK: {
+          init: async () => { throw new Error('offline'); },
+          game: { gameplayStart() { throw new Error('nope'); } },
+          ad: { requestAd: async () => { throw new Error('blocked'); } },
+        },
+      },
+    },
+  });
+  assert((await broken.init()) === 'crazygames' && broken.ready === false, 'a failing init leaves the portal unready');
+  let threw = null;
+  try { broken.gameplayStart(); await broken.commercialBreak(); } catch (e) { threw = e.message; }
+  assert(!threw, 'and none of its methods throw into the game loop' + (threw ? ` (${threw})` : ''));
+
+  const fs = await import('node:fs');
+  const mainSrc = fs.readFileSync(new URL('../skyuss/js/main.js', import.meta.url), 'utf8');
+  assert(/import \{ SkyPortal \}/.test(mainSrc) && /portal\.init\(\)/.test(mainSrc), 'main.js initialises the portal at boot');
+  assert(/playingNow !== portalPlaying/.test(mainSrc) && /portal\.gameplayStart\(\)/.test(mainSrc), 'and reports gameplay start/stop on transitions, not every frame');
+  const html = fs.readFileSync(new URL('../skyuss/index.html', import.meta.url), 'utf8');
+  assert(!/crazygames-sdk|poki-sdk/i.test(html), 'no portal script is loaded by default — the plain build stays plain');
+}
+
 section('settings: manual aim, art style, touch');
 {
   const g = new SkyGame({ seed: 8 });
@@ -1010,6 +1100,33 @@ section('settings: manual aim, art style, touch');
 }
 
 // ------------------------------------------------- module wiring / API names
+section('deploy readiness (what Vercel will actually serve)');
+{
+  assert(ENTRIES.length === 2 && ENTRIES.includes('skyuss/index.html'), 'both games are entry points');
+
+  // the crawler has to see module imports and asset literals, not just <script src>
+  const picks = importSpecs("import { a } from './x.js';\nimport('./y.js');\nimport './z.js';");
+  assert(picks.includes('./x.js') && picks.includes('./y.js') && picks.includes('./z.js'), 'static, dynamic and side-effect imports are all followed');
+  const refs = assetRefs('<img src="a.png"><style>url(b.jpg)</style><script>fetch("models/c.obj")</script>');
+  assert(refs.includes('a.png') && refs.includes('b.jpg') && refs.includes('models/c.obj'), 'html, css and fetched assets are all collected');
+  assert(!assetRefs("x.endsWith('.png')").includes('.png'), 'a bare extension is not mistaken for a path');
+
+  const report = deployCheck({ json: true });
+  assert(report.missing.length === 0, `nothing referenced by the game is missing${report.missing.length ? ': ' + report.missing.join(', ') : ''}`);
+  assert(report.absolute.length === 0, 'no root-absolute paths (they break under a sub-path deploy)');
+  assert(report.external.length === 0, 'no runtime asset is fetched from another host');
+  assert(report.graph.length >= 25, `the module graph is walked end to end (${report.graph.length} files)`);
+  assert(report.size > 0 && report.size < 40 * 1024 * 1024, `the deploy is ${(report.size / 1024 / 1024).toFixed(1)} MB — small enough for any static host`);
+  assert(report.optional.length > 0, 'the bought-hull drop slots are reported, not treated as breakage');
+
+  const fs = await import('node:fs');
+  const vercel = JSON.parse(fs.readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'));
+  assert(Array.isArray(vercel.headers) && vercel.headers.length >= 2, 'vercel.json sets cache headers');
+  assert(fs.existsSync(new URL('../.vercelignore', import.meta.url)), '.vercelignore keeps build junk off the deploy');
+  const gitignore = fs.readFileSync(new URL('../.gitignore', import.meta.url), 'utf8');
+  assert(/shots\//.test(gitignore) && /models\//.test(gitignore), 'renders and downloads stay out of git');
+}
+
 section('browser layer wiring');
 {
   const fs = await import('node:fs');

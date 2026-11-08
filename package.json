@@ -7,7 +7,7 @@
   "scripts": {
     "start": "python3 -m http.server 8000 --bind 0.0.0.0",
     "serve": "python3 -m http.server 8000 --bind 0.0.0.0",
-    "check": "node --check js/audio.js && node --check js/models/locomotive.js && node --check js/util.js && node --check js/data.js && node --check js/recipes.js && node --check js/world.js && node --check js/geo3d.js && node --check js/camera3d.js && node --check js/render.js && node --check js/ui.js && node --check js/game.js && node --check js/main.js && node --check skyuss/js/config.js && node --check skyuss/js/enterprise.js && node --check skyuss/js/aurora.js && node --check skyuss/js/premium.js && node --check skyuss/js/dreadnought.js && node --check skyuss/js/reaver.js && node --check skyuss/js/fort.js && node --check skyuss/js/world.js && node --check skyuss/js/sim.js && node --check skyuss/js/touch.js && node --check skyuss/js/ui.js && node --check skyuss/js/main.js && node --check skyuss/tools/preview-lib.mjs && node --check skyuss/tools/ship-preview.mjs && node --check skyuss/tools/world-preview.mjs && node --check skyuss/tools/model-report.mjs && node --check skyuss/tools/fetch-models.mjs",
+    "check": "node --check js/audio.js && node --check js/models/locomotive.js && node --check js/util.js && node --check js/data.js && node --check js/recipes.js && node --check js/world.js && node --check js/geo3d.js && node --check js/camera3d.js && node --check js/render.js && node --check js/ui.js && node --check js/game.js && node --check js/main.js && node --check skyuss/js/config.js && node --check skyuss/js/enterprise.js && node --check skyuss/js/aurora.js && node --check skyuss/js/premium.js && node --check skyuss/js/dreadnought.js && node --check skyuss/js/reaver.js && node --check skyuss/js/portal.js && node --check skyuss/js/fort.js && node --check skyuss/js/world.js && node --check skyuss/js/sim.js && node --check skyuss/js/touch.js && node --check skyuss/js/ui.js && node --check skyuss/js/main.js && node --check skyuss/tools/preview-lib.mjs && node --check skyuss/tools/ship-preview.mjs && node --check skyuss/tools/world-preview.mjs && node --check skyuss/tools/model-report.mjs && node --check skyuss/tools/fetch-models.mjs",
     "test": "node tools/smoke.mjs",
     "shots": "node tools/shot.mjs",
     "smoke": "node tools/smoke.mjs",
@@ -18,7 +18,8 @@
     "preview:hull": "node skyuss/tools/hull-preview.mjs --out shots/aurora-class.png",
     "report:hull": "node skyuss/tools/model-report.mjs",
     "fetch:models": "node skyuss/tools/fetch-models.mjs",
-    "fetch:models:list": "node skyuss/tools/fetch-models.mjs --list"
+    "fetch:models:list": "node skyuss/tools/fetch-models.mjs --list",
+    "deploy:check": "node tools/deploy-check.mjs"
   },
   "devDependencies": {
     "@napi-rs/canvas": "^1.1.0",

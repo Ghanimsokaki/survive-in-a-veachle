@@ -434,7 +434,7 @@ skyuss/
   js/main.js          renderer, cloud sea, camera rig, input, scene sync, VFX
   js/audio.js         synthesised WebAudio (no assets)
   js/touch.js         thumb-stick / look-pad / action buttons for phones
-tools/skyuss-smoke.mjs   headless test: 373 assertions, no GPU required
+tools/skyuss-smoke.mjs   headless test: 410 assertions, no GPU required
 ```
 
 The split is deliberate: **`sim.js` never imports Three.js and `main.js` never owns game
@@ -456,7 +456,7 @@ Useful because jsdom has no WebGL: this is how the hull proportions get reviewed
 ## Tests
 
 ```bash
-npm run smoke:skyuss        # 373 assertions: sim + streaming + meshes, no GPU
+npm run smoke:skyuss        # 410 assertions: sim + streaming + meshes, no GPU
 npm run smoke:skyuss:boot   # 83 assertions: boots the real renderer headlessly
 npm run check               # syntax-check both games
 npm run test:all            # every suite in this repo

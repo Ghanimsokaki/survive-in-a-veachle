@@ -14,6 +14,7 @@ import { buildIsland, buildDerelict, buildStorm, buildHomeBeacon } from './world
 import { UI } from './ui.js';
 import { SkyAudio } from './audio.js';
 import { TouchControls } from './touch.js';
+import { SkyPortal } from './portal.js';
 import { FORT, PIECE_ORDER } from './config.js';
 
 const SAVE_KEY = 'skyuss_v1';
@@ -325,6 +326,11 @@ let shipSig = '';
 let fortSig = '';
 let started = false;
 let paused = false;
+// Portal SDKs (CrazyGames / Poki) are inert unless their script is on the page —
+// see js/portal.js. portalPlaying mirrors "the player is in control" so start/stop
+// fire exactly once per change rather than every frame.
+const portal = new SkyPortal();
+let portalPlaying = false;
 
 const state = {
   keys: {},
@@ -558,6 +564,7 @@ function startGame(resume) {
 
   applyTouchMode();
   audio.init();
+  portal.init().then((kind) => { if (kind !== 'none') portal.loadingProgress(1); });
   audio.resume();
   audio.setEnabled(audio.enabled);
   UI.showMenu(false);
@@ -1321,6 +1328,13 @@ let uiTick = 0;
 
 function loop() {
   const dt = Math.min(clock.getDelta(), 0.05);
+
+  // tell a portal when the player is actually playing, so its ads land in menus
+  const playingNow = !!(game && started && !UI.modalOpen());
+  if (playingNow !== portalPlaying) {
+    portalPlaying = playingNow;
+    if (playingNow) portal.gameplayStart(); else portal.gameplayStop();
+  }
 
   if (game && started && !UI.modalOpen() && state.camMode !== 'free') {
     updateAim();

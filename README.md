@@ -10,6 +10,11 @@ npm start        # http://localhost:8000  (Home on Wheels)
 
 The start menu links straight to SKYUSS, and SKYUSS links back.
 
+**Publishing:** both games are static files with no build step — see [DEPLOY.md](DEPLOY.md) for the
+Vercel settings (`npm run deploy:check` verifies every referenced file is committed and relative),
+and [MONETISE.md](MONETISE.md) for what actually pays in browser games and the portal hooks already
+wired into SKYUSS.
+
 ---
 
 # HOME ON WHEELS
