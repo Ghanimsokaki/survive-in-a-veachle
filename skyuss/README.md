@@ -131,7 +131,7 @@ The courier flies the **Dispatcher** from Quaternius' *Ultimate Spaceships Pack*
 the file is committed with credit in `skyuss/assets/models/quaternius/` (see that folder's
 README for the source, the exact changes and the licence text).
 
-![the Aurora-class courier](shots/aurora-class.png)
+![the Aurora-class courier](docs/aurora-class.png)
 
 `js/premium.js` is a dependency-free OBJ reader (`v`, `vt`, `f` with `v`, `v/vt` and `v//vn`,
 fan-triangulated n-gons, negative indices) plus a loader that centres the mesh on the flight
