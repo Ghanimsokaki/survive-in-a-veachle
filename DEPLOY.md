@@ -59,7 +59,7 @@ The three failure modes it is looking for: **missing** (referenced but never com
 fetched from another host, which is one outage away from a blank screen). Exit code is non-zero
 if anything is wrong, so it can gate a deploy. `--json` gives the same thing machine-readable.
 
-`npm run test:all` (smoke 139 + SKYUSS 410 + boot 84 assertions) runs the same crawl as one of
+`npm run test:all` (smoke 156 + SKYUSS 452 + boot 106 assertions) runs the same crawl as one of
 its checks, so a broken path fails the test suite too.
 
 ## Things that behave differently once deployed
@@ -78,3 +78,11 @@ its checks, so a broken path fails the test suite too.
 Open `/` and `/skyuss` on your phone. Both have touch controls (`js/touch.js`,
 `skyuss/js/touch.js`), the SKYUSS HUD collapses on narrow screens, and audio starts only on the
 first tap — iOS will not play anything before a gesture, so the mute button starts ready.
+
+## Phones
+
+Both games are playable on a phone with no extra build step. SKYUSS swaps in a
+thumb-stick, a look pad and a FIRE/TORP/WARP/BOOST cluster; HOME ON WHEELS gains a stick,
+an aim pad and an action cluster that synthesise the keyboard and mouse events the game
+already listens for. Add `?touch=1` to either URL to preview the touch layout on a
+desktop, and `?lowq=1` (SKYUSS) to drop shadows on a weak GPU.

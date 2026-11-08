@@ -363,3 +363,12 @@ The smoke test boots the actual game with a fake canvas and exercises the whole 
 - Don't sail without the raft — the car floods fast.
 - In D.C., use the 20-second calm before wave 1 to repair and re-deploy.
 - Furnishing the cabin (cot, plant, heater, radio) is the cheapest way to push the home score past 120/350/700.
+
+## On a phone
+
+Both games work without a keyboard. In HOME ON WHEELS, `js/touch.js` mounts a left stick
+(drag → W/A/S/D), a right aim pad (tap to shoot or loot, drag to swing the aim) and an
+action cluster for interact, craft, build, foot, anchor, satchel, crew, route, help and
+depart — plus a hold-to-fire button. In SKYUSS the thumb layout is part of the game
+(`skyuss/js/touch.js`). Append `?touch=1` to either page to try the touch layout on a
+desktop, or `?touch=0` to force the keyboard layout on a tablet.

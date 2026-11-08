@@ -744,6 +744,70 @@ const { box: geoBox } = await import('../js/geo3d.js');
   assert(true, 'the audio layer is inert again once the context is gone');
 }
 
+// phones: the touch layer translates fingers into the events the game already reads
+{
+  const { GameTouch, touchSupported, TOUCH_ACTIONS } = await import('../js/touch.js');
+
+  assert(touchSupported({ location: { search: '?touch=1' }, matchMedia: () => ({ matches: false }) }), '?touch=1 forces the touch layer on');
+  assert(!touchSupported({ location: { search: '?touch=0' }, matchMedia: () => ({ matches: false }) }), '?touch=0 keeps it off');
+  assert(touchSupported({ location: { search: '' }, matchMedia: () => ({ matches: true }) }), 'a coarse pointer is detected');
+
+  const seen = [];
+  const onKey = (e) => seen.push('keydown:' + e.key);
+  const onUp = (e) => seen.push('keyup:' + e.key);
+  window.addEventListener('keydown', onKey);
+  window.addEventListener('keyup', onUp);
+
+  const canvas = document.getElementById('game');
+  const clicks = [];
+  canvas.addEventListener('mousedown', () => clicks.push('down'));
+  canvas.addEventListener('mouseup', () => clicks.push('up'));
+
+  const t = new GameTouch({ win: window, canvas });
+  t.mount();
+  assert(!!t.root && t.enabled, 'the layer mounts on a phone');
+  assert(document.body.classList.contains('mtouch-on'), 'and marks the body so the desktop hotbar hides');
+  assert(t.root.querySelectorAll('.m-btn').length === TOUCH_ACTIONS.length + 1, 'every action plus FIRE is on screen');
+  assert(!!t.root.querySelector('[data-pad=\"stick\"]') && !!t.root.querySelector('[data-pad=\"aim\"]'), 'stick and aim pad exist');
+
+  const stick = t.root.querySelector('[data-pad=\"stick\"]');
+  stick.getBoundingClientRect = () => ({ left: 0, top: 0, width: 120, height: 120 });
+  const pev = (type, x, y) => new window.PointerEvent(type, { clientX: x, clientY: y, pointerId: 1, bubbles: true });
+
+  seen.length = 0;
+  stick.dispatchEvent(pev('pointerdown', 60, 20));
+  assert(seen.includes('keydown:w'), 'pushing the stick forward presses W');
+  stick.dispatchEvent(pev('pointerup', 60, 20));
+  assert(seen.includes('keyup:w'), 'and releasing lets go');
+
+  seen.length = 0;
+  stick.dispatchEvent(pev('pointerdown', 110, 60));
+  assert(seen.includes('keydown:d') && !seen.includes('keydown:w'), 'pushing right steers instead');
+  t.releaseAll();
+  assert(t.held.size === 0, 'releaseAll drops every held key, so a tab switch cannot leave the car driving');
+
+  seen.length = 0;
+  const craftBtn = t.root.querySelector('[data-do=\"craft\"]');
+  craftBtn.dispatchEvent(pev('pointerdown', 0, 0));
+  craftBtn.dispatchEvent(pev('pointerup', 0, 0));
+  assert(seen.join(',') === 'keydown:c,keyup:c', 'an action button is one keypress, not a held key');
+
+  clicks.length = 0;
+  t.shootAt(0.5, 0.5);
+  assert(clicks.includes('down') && clicks.includes('up'), 'tapping the world clicks the canvas');
+  assert(t.aim.x === 0.5 && t.aim.y === 0.5, 'and moves the aim point');
+
+  clicks.length = 0;
+  t.fire(true); t.fire(true); t.fire(false);
+  assert(clicks.filter((c) => c === 'down').length === 1 && clicks.filter((c) => c === 'up').length === 1, 'FIRE holds one virtual button however often it is pressed');
+
+  t.unmount();
+  assert(!t.enabled && !document.body.classList.contains('mtouch-on'), 'unmounting restores the desktop layout');
+  assert(t.held.size === 0, 'and leaves no key stuck down');
+  window.removeEventListener('keydown', onKey);
+  window.removeEventListener('keyup', onUp);
+}
+
 console.log('\n--- errors (' + errors.length + ') ---');
 errors.slice(0, 20).forEach((e) => console.log(e));
 process.exit(errors.length ? 1 : 0);

@@ -2,11 +2,15 @@
 import { G } from './game.js';
 import { UI } from './ui.js';
 import { Sfx } from './util.js';
+import { autoMountTouch } from './touch.js';
 
 const $ = (id) => document.getElementById(id);
 
 const canvas = $('game');
 G.init(canvas);
+
+// phones get a stick, an aim pad and an action cluster; desktops get nothing
+const touch = autoMountTouch({ canvas });
 
 // ------------------------------------------------------------------ menu buttons
 $('btnNew').addEventListener('click', () => {

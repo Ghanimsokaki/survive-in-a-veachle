@@ -28,13 +28,21 @@ try {
   UI.fatal('WebGL could not start: ' + (err && err.message ? err.message : 'unknown error'));
   throw err;
 }
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+// phones: a high-DPI ratio on a mobile GPU costs frames you can feel, so cap it
+const COARSE = (() => {
+  try { return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || 'ontouchstart' in window; }
+  catch { return false; }
+})();
+const LOW_POWER = /[?&](lowq|quality=low)\b/.test(window.location.search) || COARSE;
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, COARSE ? 1.5 : 2));
 renderer.setSize(window.innerWidth, window.innerHeight, false);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.06;
-renderer.shadowMap.enabled = true;
+renderer.shadowMap.enabled = !window.location.search.includes('lowq');
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+// one shadow camera at 2k on a desktop, 1k on a phone: same look, a quarter of the fill
+const SHADOW_SIZE = COARSE ? 1024 : 2048;
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x9dc4e6, 0.0016);
@@ -48,7 +56,7 @@ scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff0cf, 2.4);
 sun.position.set(140, 240, 110);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(SHADOW_SIZE, SHADOW_SIZE);
 sun.shadow.camera.near = 20;
 sun.shadow.camera.far = 700;
 sun.shadow.camera.left = -180;

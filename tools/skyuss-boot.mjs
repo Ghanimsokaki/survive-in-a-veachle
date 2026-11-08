@@ -292,6 +292,15 @@ key('Escape'); await frames();
   document.querySelector('[data-do="warp"]').dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true }));
   await frames();
   assert(g.fx.warps === warps + 1, 'the touch WARP button fires a warp dash');
+  const boostBtn = document.querySelector('[data-do="boost"]');
+  assert(!!boostBtn, 'the phone layout has a BOOST button');
+  boostBtn.dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true }));
+  await frames();
+  assert(t.boostHeld === true && t.state().boost === true, 'holding BOOST reaches the flight input');
+  boostBtn.dispatchEvent(new window.MouseEvent('pointerup', { bubbles: true }));
+  await frames();
+  assert(t.boostHeld === false, 'releasing BOOST stops it');
+
   const fireBtn = document.querySelector('[data-do="fire"]');
   fireBtn.dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true }));
   await frames();

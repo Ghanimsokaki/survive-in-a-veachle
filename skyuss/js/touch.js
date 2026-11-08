@@ -39,6 +39,7 @@ export class TouchControls {
         <button class="t-btn" data-do="torpedo">TORP</button>
         <button class="t-btn" data-do="warp">WARP</button>
         <button class="t-btn" data-do="interact">TRACTOR</button>
+        <button class="t-btn" data-do="boost">BOOST</button>
         <button class="t-btn" data-do="up">▲</button>
         <button class="t-btn" data-do="down">▼</button>
         <button class="t-btn" data-do="build">FORT</button>
@@ -103,12 +104,13 @@ export class TouchControls {
 
     for (const btn of el.querySelectorAll('[data-do]')) {
       const doWhat = btn.dataset.do;
-      const isHold = doWhat === 'fire' || doWhat === 'up' || doWhat === 'down';
+      const isHold = doWhat === 'fire' || doWhat === 'up' || doWhat === 'down' || doWhat === 'boost';
       bind(btn, 'pointerdown', (e) => {
         e.preventDefault();
         e.stopPropagation();
         btn.classList.add('held');
         if (doWhat === 'fire') this.fireHeld = true;
+        else if (doWhat === 'boost') this.boostHeld = true;
         else if (doWhat === 'up') this.climb = 1;
         else if (doWhat === 'down') this.climb = -1;
         else this.onAction(doWhat);
@@ -117,6 +119,7 @@ export class TouchControls {
         e.preventDefault();
         btn.classList.remove('held');
         if (doWhat === 'fire') this.fireHeld = false;
+        else if (doWhat === 'boost') this.boostHeld = false;
         else if (doWhat === 'up' && this.climb === 1) this.climb = 0;
         else if (doWhat === 'down' && this.climb === -1) this.climb = 0;
       });
@@ -124,6 +127,7 @@ export class TouchControls {
         bind(btn, 'pointercancel', () => {
           btn.classList.remove('held');
           if (doWhat === 'fire') this.fireHeld = false;
+          else if (doWhat === 'boost') this.boostHeld = false;
           else this.climb = 0;
         });
       }

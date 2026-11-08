@@ -504,7 +504,7 @@ Useful because jsdom has no WebGL: this is how the hull proportions get reviewed
 
 ```bash
 npm run smoke:skyuss        # 452 assertions: sim + streaming + meshes, no GPU
-npm run smoke:skyuss:boot   # 83 assertions: boots the real renderer headlessly
+npm run smoke:skyuss:boot   # 106 assertions: boots the real renderer headlessly
 npm run check               # syntax-check both games
 npm run test:all            # every suite in this repo
 ```
@@ -550,3 +550,28 @@ That is 300k+ stub draw calls of coverage without a GPU.
 | `P` | touch controls: auto ⇄ on ⇄ off |
 | `1`–`8` | pick a fortress piece |
 | `H` | flight manual · `Esc` close |
+
+
+## On a phone
+
+Open `/skyuss` on a phone and the game switches itself to a thumb layout: a stick on the
+left, a look pad that orbits the camera on the right, and a button cluster with **FIRE**,
+**TORP**, **WARP**, **BELAY** (tractor), **BOOST**, ▲/▼, **FORT** and **REFIT**. Push
+`?touch=1` on any device to force that layout, `?touch=0` to keep the desktop one, or
+`?lowq=1` to drop shadows entirely.
+
+Three things happen automatically on a coarse pointer:
+
+* the device pixel ratio is capped at **1.5** and the sun's shadow map drops from 2048 to
+  **1024** — the same look at a quarter of the fill cost;
+* safe-area insets (`env(safe-area-inset-*)`) keep the stick, buttons and top bar clear of
+  notches and gesture bars;
+* panels become scrollable sheets (`min(88dvh, 760px)`) and every tappable control is at
+  least 40–44 px tall, so the store, refit and help screens stop clipping.
+
+The hotbar is hidden while the touch layout is on (the buttons replace it), and the
+action log moves up out of the thumbs' way. Landscape phones get a shorter HUD and a
+smaller stick, driven by `@media (max-height: 460px) and (pointer: coarse)`.
+
+`js/touch.js` in the root game does the same job for HOME ON WHEELS by translating
+fingers into the keyboard and mouse events the game already reads.

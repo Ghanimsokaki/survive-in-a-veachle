@@ -322,7 +322,10 @@ body.touch-on .hotbar { display: none; }
 body.touch-on .hud-bl { bottom: 190px; }
 
 .t-stick {
-  position: absolute; left: 16px; bottom: 96px; width: 132px; height: 132px;
+  position: absolute;
+  left: max(16px, env(safe-area-inset-left));
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  width: 132px; height: 132px;
   border-radius: 50%; pointer-events: auto; touch-action: none;
   background: radial-gradient(circle at 50% 50%, rgba(20, 40, 60, 0.7), rgba(8, 18, 30, 0.55));
   border: 1px solid rgba(103, 224, 255, 0.32);
@@ -340,7 +343,10 @@ body.touch-on .hud-bl { bottom: 190px; }
   letter-spacing: 0.2em; display: flex; align-items: flex-end; justify-content: center; padding: 8px;
 }
 .t-buttons {
-  position: absolute; right: 12px; bottom: 92px; display: grid; gap: 7px;
+  position: absolute;
+  right: max(12px, env(safe-area-inset-right));
+  bottom: calc(92px + env(safe-area-inset-bottom));
+  display: grid; gap: 7px;
   grid-template-columns: repeat(3, minmax(58px, 72px)); pointer-events: auto;
 }
 .t-btn {
@@ -617,4 +623,69 @@ body.freecam #hud .reticle { opacity: 0.25; }
   .side-rail button { width: 46px; }
   .side-rail button i { display: none; }
   .toasts { bottom: 200px !important; }
+}
+
+/* ==========================================================================
+   Phone pass: notch-safe insets, 44 px touch targets, panels that scroll
+   instead of clipping, and a HUD that stays out of the thumbs' way.
+   ========================================================================== */
+
+html, body {
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+#sky { touch-action: none; }
+
+/* notch / rounded-corner safe areas on every anchored HUD piece */
+.topbar { padding-left: max(14px, env(safe-area-inset-left)); padding-right: max(14px, env(safe-area-inset-right)); }
+.toasts { left: max(14px, env(safe-area-inset-left)) !important; }
+.hud-bl { left: max(16px, env(safe-area-inset-left)); }
+.hud-br { right: max(16px, env(safe-area-inset-right)); }
+.side-rail { right: max(12px, env(safe-area-inset-right)); }
+.hotbar { padding-bottom: max(6px, env(safe-area-inset-bottom)); }
+
+/* panels scroll on a phone instead of overflowing off-screen */
+.panel {
+  max-height: min(88dvh, 760px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+.panel-close { min-width: 44px; min-height: 44px; }
+
+@media (pointer: coarse) {
+  .hotbar button { min-width: 56px; min-height: 44px; }
+  .side-rail button { min-width: 44px; min-height: 52px; }
+  .chip-currency { min-height: 40px; }
+  .t-btn { min-width: 58px; min-height: 44px; }
+  .panel button, .panel .chip { min-height: 40px; }
+}
+
+@media (max-width: 560px) {
+  .topbar { height: 44px; gap: 6px; }
+  .topbar .brand b { font-size: 13px; }
+  .chip-currency { padding: 5px 9px; font-size: 11.5px; gap: 5px; }
+  .chip-currency b { min-width: 26px; text-align: right; }
+  .chip-plus { width: 30px; height: 30px; font-size: 17px; }
+  .shop-grid { grid-template-columns: 1fr; }
+  .panel { width: calc(100% - 16px); padding: 14px 12px; }
+  .toasts { max-width: 62vw; bottom: 190px !important; }
+  .hud-bl { width: 168px; }
+  .hud-bl .bar-label { font-size: 8.5px; }
+  .hud-br { font-size: 11px; gap: 4px; padding: 8px 10px; }
+  .t-stick { width: 112px; height: 112px; bottom: calc(120px + env(safe-area-inset-bottom)); }
+  .t-knob { width: 48px; height: 48px; margin: -24px 0 0 -24px; }
+  .t-buttons { bottom: calc(120px + env(safe-area-inset-bottom)); }
+  .side-rail { bottom: calc(84px + env(safe-area-inset-bottom)); }
+}
+
+/* landscape phones: everything hugs the bottom edge, HUD shrinks */
+@media (max-height: 460px) and (pointer: coarse) {
+  .topbar { height: 40px; }
+  .hud-bl { width: 150px; bottom: 10px; }
+  .toasts { bottom: 96px !important; }
+  .side-rail { bottom: auto; top: 50%; }
+  .t-stick { bottom: calc(66px + env(safe-area-inset-bottom)); width: 96px; height: 96px; }
+  .t-buttons { bottom: calc(66px + env(safe-area-inset-bottom)); }
 }
