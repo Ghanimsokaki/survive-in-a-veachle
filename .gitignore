@@ -7,3 +7,6 @@ image-search/
 # the bought TurboSquid hull lives here, never in git (licence forbids redistribution)
 skyuss/assets/premium/*
 !skyuss/assets/premium/README.md
+
+# hub downloads (third-party meshes — licence-clean copies only, never the originals)
+models/

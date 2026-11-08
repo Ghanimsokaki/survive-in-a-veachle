@@ -11,6 +11,7 @@ import { buildAurora } from '../skyuss/js/aurora.js';
 import { buildDreadnought } from '../skyuss/js/dreadnought.js';
 import { parseOBJ, objMesh, loadPremium, loadCommittedHull, HULL_MODELS, PREMIUM_CANDIDATES, PREMIUM_FILES } from '../skyuss/js/premium.js';
 import { structureOBJ, structureGLB, shapeOf, matchClasses, reportFile, knownModel, knownList, identityBlock } from '../skyuss/tools/model-report.mjs';
+import { resolveUrl, treeUrl, diagnose, human, LIBRARY, DEFAULT_REPO, sha256File } from '../skyuss/tools/fetch-models.mjs';
 
 const errors = [];
 const assert = (cond, msg) => {
@@ -823,6 +824,48 @@ section('reading a model from the inside (identification)');
   let blendErr = '';
   try { reportFile('/tmp/nope.blend'); } catch (e) { blendErr = String(e.message); }
   assert(/Blender/.test(blendErr), 'a .blend is refused with an explanation, not a crash');
+}
+
+section('fetching the library (URLs that actually resolve)');
+{
+  // the old batch script built https://huggingface.co<user>/<repo>/... — no slash, no /datasets/
+  const buggy = 'https://huggingface.co' + 'Hwiiiiiiii' + '/Hwiiiiiiii/for/resolve/main/model.fbx';
+  assert(/huggingface\.coHwiiiiiiii/.test(buggy), 'the old script put the host and the user together with no slash');
+
+  const url = resolveUrl(DEFAULT_REPO, 'model.fbx');
+  assert(url === 'https://huggingface.co/datasets/Hwiiiiiiii/for/resolve/main/model.fbx?download=true', 'the fixed URL has /datasets/ and the right slashes');
+  assert(new URL(url).hostname === 'huggingface.co', 'the fixed URL parses with huggingface.co as the host');
+  assert(/\.fbx$/.test(new URL(url).pathname) && !/huggingface\.co[A-Za-z]/.test(url), 'the filename is on the path, not glued to the host');
+
+  const spaced = resolveUrl(DEFAULT_REPO, 'USS Enterprise NCC-1701-I  Odin Class.blend');
+  assert(spaced.includes('USS%20Enterprise%20NCC-1701-I%20%20Odin%20Class.blend'), 'double spaces in a filename are encoded, not dropped');
+  assert(decodeURIComponent(new URL(spaced).pathname).endsWith('USS Enterprise NCC-1701-I  Odin Class.blend'), 'and it decodes back to the exact name');
+
+  const nested = resolveUrl(DEFAULT_REPO, 'meshes/sub dir/ship.glb', { revision: 'v2', download: false });
+  assert(nested.endsWith('/resolve/v2/meshes/sub%20dir/ship.glb'), 'nested paths keep their slashes and take a revision');
+  assert(!nested.includes('?'), 'download=false drops the query string');
+
+  let repoErr = '';
+  try { resolveUrl('for', 'model.fbx'); } catch (e) { repoErr = e.message; }
+  assert(/owner\/name/.test(repoErr), 'a repo without an owner is rejected instead of building a bad URL');
+
+  assert(treeUrl(DEFAULT_REPO).endsWith('/api/datasets/Hwiiiiiiii/for/tree/main?recursive=1'), 'the listing endpoint is the tree API');
+
+  assert(/TLS|blocked/.test(diagnose(Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' }), url)), 'a cut connection is diagnosed as a blocked host');
+  assert(/not in the repo/.test(diagnose(Object.assign(new Error('HTTP 404'), { code: 'HTTP_404' }), url)), 'a 404 names the missing file');
+  assert(/token/.test(diagnose(Object.assign(new Error('HTTP 401'), { code: 'HTTP_401' }), url)), 'a 401 asks for a token');
+  assert(human(7.55 * 1024 * 1024) === '7.5 MB' && human(512) === '512 B' && human(250 * 1024 * 1024) === '250 MB', 'byte sizes read like sizes');
+
+  assert(LIBRARY.includes('model.fbx') && LIBRARY.includes('NCC1701D_FIND.blend'), 'the library list names the files that exist');
+  assert(!LIBRARY.some((f) => /jkdfwyolow1d/.test(f)), 'the files that are not in the repo are not in the list');
+
+  // the manifest hashes what it saved: same bytes in, same digest out
+  const fs = await import('node:fs');
+  const tmp = '/tmp/skyuss-hash-test.bin';
+  fs.writeFileSync(tmp, Buffer.from('vengeance'));
+  assert(sha256File(tmp) === '7f58dc064cfa5a36b4f1421f080a4fb3f4973e1daabc665c9d29a75173c7102f', 'sha256 of the saved bytes is the digest of those bytes');
+  assert(/^[0-9a-f]{64}$/.test(sha256File(tmp)), 'the manifest stores a full sha256');
+  assert(sha256File(tmp) !== sha256File(new URL('../skyuss/assets/models/quaternius/dispatcher.obj', import.meta.url).pathname), 'different files hash differently');
 }
 
 section('effects bus + audio module');

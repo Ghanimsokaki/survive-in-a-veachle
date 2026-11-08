@@ -220,6 +220,45 @@ no FBX converter, so those formats are unreadable here by design, not by acciden
 node skyuss/tools/model-report.mjs --in model.obj --json   # machine-readable
 ```
 
+### Pulling the library down (a download URL that actually resolves)
+
+`tools/fetch-models.mjs` is the corrected batch downloader for the Hub dataset. The original
+one-liner had a broken URL —
+
+```
+https://huggingface.co + HF_USERNAME + "/" + "Hwiiiiiiii/for" + "/resolve/main/model.fbx"
+= https://huggingface.coHwiiiiiiii/Hwiiiiiiii/for/resolve/main/model.fbx
+```
+
+— which treats `huggingface.coHwiiiiiiii` as the **host**, so nothing ever downloads. A dataset
+file lives at `/datasets/<owner>/<repo>/resolve/<revision>/<file>`, with each path segment
+URL-encoded (the library has filenames with two spaces in them):
+
+```bash
+npm run fetch:models -- --dry-run          # print every URL before touching the network
+npm run fetch:models:list                  # what is really in the repo, from the tree API
+npm run fetch:models                       # download into models/ (gitignored)
+npm run fetch:models -- --file model.fbx   # just the Vengeance
+HF_TOKEN=hf_x npm run fetch:models         # gated / private repos
+```
+
+```
+https://huggingface.co/datasets/Hwiiiiiiii/for/resolve/main/model.fbx?download=true
+https://huggingface.co/datasets/Hwiiiiiiii/for/resolve/main/USS%20Enterprise%20NCC-1701-I%20%20Odin%20Class.blend?download=true
+```
+
+It streams to `<file>.part`, resumes with a `Range` request after a dropped connection, retries
+with backoff, verifies the final byte count, skips files it already has, supports redirects
+(the Hub answers with a 302 to its CDN), and writes `models/manifest.json` with size, sha256,
+source URL and timestamp per file. The engine is verified end to end against a 250 MB archive
+through a redirect: a resume from 200 KB produced a byte-identical sha256 to a fresh download.
+
+**This sandbox cannot reach the Hub.** `huggingface.co` resolves but the TLS handshake is reset
+by egress policy (`cdn-lfs.huggingface.co` does not even resolve), so `--list` and the downloads
+fail here with that diagnosis printed rather than a stack trace. Run the script on your own
+machine, or push the files to GitHub and pass `--base`. Only licence-clean meshes are committed;
+downloaded originals stay in the ignored `models/` folder.
+
 ### Bringing in a hull you own
 
 `js/premium.js` has one slot per shipyard hull:
@@ -365,7 +404,7 @@ skyuss/
   js/main.js          renderer, cloud sea, camera rig, input, scene sync, VFX
   js/audio.js         synthesised WebAudio (no assets)
   js/touch.js         thumb-stick / look-pad / action buttons for phones
-tools/skyuss-smoke.mjs   headless test: 325 assertions, no GPU required
+tools/skyuss-smoke.mjs   headless test: 344 assertions, no GPU required
 ```
 
 The split is deliberate: **`sim.js` never imports Three.js and `main.js` never owns game
@@ -387,7 +426,7 @@ Useful because jsdom has no WebGL: this is how the hull proportions get reviewed
 ## Tests
 
 ```bash
-npm run smoke:skyuss        # 325 assertions: sim + streaming + meshes, no GPU
+npm run smoke:skyuss        # 344 assertions: sim + streaming + meshes, no GPU
 npm run smoke:skyuss:boot   # 83 assertions: boots the real renderer headlessly
 npm run check               # syntax-check both games
 npm run test:all            # every suite in this repo
