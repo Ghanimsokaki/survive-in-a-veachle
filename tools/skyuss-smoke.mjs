@@ -10,6 +10,7 @@ import { FORT, FORT_PIECES, SHIP_UPGRADES, WORLD, CREDITS, PHOTO_CONTRACTS, SHIP
 import { buildAurora } from '../skyuss/js/aurora.js';
 import { buildDreadnought } from '../skyuss/js/dreadnought.js';
 import { parseOBJ, objMesh, loadPremium, loadCommittedHull, HULL_MODELS, PREMIUM_CANDIDATES, PREMIUM_FILES } from '../skyuss/js/premium.js';
+import { structureOBJ, structureGLB, shapeOf, matchClasses, reportFile } from '../skyuss/tools/model-report.mjs';
 
 const errors = [];
 const assert = (cond, msg) => {
@@ -744,6 +745,66 @@ section('the Kang-class dreadnought');
   const swapped = mesh.userData.setPremium(objMesh(THREE, parseOBJ(cube)), { length: 62 });
   assert(swapped === true && mesh.userData.premium === true, 'a dropped-in dreadnought mesh replaces the placeholder');
   assert(parts.exhaust.every((e) => e.visible), 'the three exhausts keep burning on the dropped mesh');
+}
+
+section('reading a model from the inside (identification)');
+{
+  const fs = await import('node:fs');
+  const raw = fs.readFileSync(new URL('../skyuss/assets/models/quaternius/dispatcher.obj', import.meta.url), 'utf8');
+  const st = structureOBJ(raw);
+  assert(st.counts.triangles === 748 && st.counts.vertices === 405, 'the report counts the real geometry');
+  assert(st.objects.length === 1 && /Dispatcher/.test(st.objects[0].name), 'it reads the object name inside the OBJ');
+  assert(st.materials.includes('Texture'), 'and the material names');
+  assert(st.counts.uvs > 0 && st.counts.normals > 0, 'and whether UVs / normals exist');
+  assert(st.size.every((v) => v > 0), 'and the bounding box of the raw file');
+
+  const shape = shapeOf(st.size);
+  assert(shape.longestAxis === 'z', 'the hulls longest axis is Z (the flight axis)');
+  assert(shape.spanToLength > 0.4 && shape.spanToLength < 0.55, 'span/length ratio is measured, not guessed');
+
+  const db = JSON.parse(fs.readFileSync(new URL('../skyuss/data/ship-classes.json', import.meta.url), 'utf8'));
+  assert(db.hulls.length >= 15 && db.hulls.every((h) => h.name && h.length > 0), 'the class database is complete');
+
+  const prop = matchClasses(st.size, db);
+  assert(prop.mode === 'proportions' && prop.matches.length === 4, 'without a scale it matches on proportions');
+  assert(prop.matches[0].score > 90, `the courier proportions land near a courier (${prop.matches[0].score}%)`);
+
+  const scaled = matchClasses(st.size, db, { length: 289 });
+  assert(scaled.mode === 'dimensions', 'with --length it scores sizes');
+  assert(/Constitution/.test(scaled.matches[0].name), 'a 289 m hull identifies as Constitution-class');
+
+  // two named objects in one file stay separate
+  const two = 'o Saucer\nv 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\no Nacelle\nv 0 0 0\nv 2 0 0\nv 0 2 0\nf 1 2 3\nf 1 2 3\n';
+  const twoSt = structureOBJ(two);
+  assert(twoSt.objects.length === 2, 'per-object architecture is reported, not just totals');
+  assert(twoSt.objects[0].name === 'Nacelle' && twoSt.objects[0].triangles === 2, 'objects are sorted by triangle count');
+
+  // a minimal GLB: header + JSON chunk with two named nodes
+  const gltf = {
+    asset: { version: '2.0', generator: 'test-export' },
+    nodes: [{ name: 'Enterprise_D' }, { name: 'Nacelle_Port' }],
+    meshes: [{ name: 'Enterpise_Mesh', primitives: [{ attributes: { POSITION: 0, TEXCOORD_0: 0 }, indices: 1, material: 0 }] }],
+    materials: [{ name: 'Hull_Grey' }],
+    accessors: [
+      { count: 300, min: [-10, -2, -50], max: [10, 2, 50] },
+      { count: 900 },
+    ],
+  };
+  const jsonBuf = Buffer.from(JSON.stringify(gltf), 'utf8');
+  const padded = Buffer.concat([jsonBuf, Buffer.alloc((4 - (jsonBuf.length % 4)) % 4, 0x20)]);
+  const head = Buffer.alloc(20);
+  head.writeUInt32LE(0x46546c67, 0); head.writeUInt32LE(2, 4); head.writeUInt32LE(12 + 8 + padded.length, 8);
+  head.writeUInt32LE(padded.length, 12); head.writeUInt32LE(0x4e4f534a, 16);
+  const glb = Buffer.concat([head, padded]);
+  const g = structureGLB(glb);
+  assert(!!g && g.format === 'glb' && g.generator === 'test-export', 'GLB reports are read from the JSON chunk');
+  assert(g.counts.triangles === 300 && g.counts.objects === 1, 'triangle counts come from the accessors');
+  assert(g.nodeNames.includes('Enterprise_D') && g.materials.includes('Hull_Grey'), 'node and material names are listed');
+  assert(Math.abs(g.size[2] - 100) < 0.01, 'the accessor min/max gives the model size');
+
+  let blendErr = '';
+  try { reportFile('/tmp/nope.blend'); } catch (e) { blendErr = String(e.message); }
+  assert(/Blender/.test(blendErr), 'a .blend is refused with an explanation, not a crash');
 }
 
 section('effects bus + audio module');

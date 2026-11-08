@@ -162,6 +162,46 @@ but not redistribution of the file, so that route stays a local drop-in:
 `npm run preview:hull` re-renders the preview above straight from the shipped OBJ (the offline
 rasteriser has no texture sampling, so the tool bakes the palette into vertex colours first).
 
+### Identifying a model you forgot the name of
+
+`tools/model-report.mjs` reads a model's **internal architecture** — object and group names,
+material names, per-object triangle counts and bounding boxes, UV/normal presence, the
+glTF node tree — and then scores its proportions against `data/ship-classes.json`:
+
+```bash
+npm run report:hull -- --in ~/Downloads/ship.obj          # proportions (no scale needed)
+npm run report:hull -- --in ship.glb --length 641         # score against real sizes too
+```
+
+```
+model ── ship.obj  (OBJ)
+  geometry            748 tris · 405 verts
+  internal objects    1 · 1 o/g groups
+  materials           1 "Texture"
+  bounding box        4.904 × 3.086 × 10.263 units
+  architecture:
+    Dispatcher_Cube.006        748 tris  4.904 × 3.086 × 10.263  [Texture]
+  orientation         longest axis Z — the game flies along +Z, so this needs no rotation
+  proportions         span/length 0.478, height/length 0.301
+
+class match ── proportions against skyuss/data/ship-classes.json
+   98.7%  Generic courier / fighter (game scale)     span ratio off 2.4%
+   87.7%  Generic cruiser (game scale)               span ratio off 4.3%
+```
+
+Without `--length` the matcher compares **shape ratios only**, because the units of an arbitrary
+export mean nothing. With `--length <m>` it adds a size score. Names inside the file are the
+stronger evidence when they exist — a mesh called `Saucer_Section` tells you more than any
+bounding box.
+
+Supported: **OBJ** and **GLB** (`.gltf` without its `.bin` cannot be measured). `.blend` and
+`.fbx` are refused with a message telling you to export first — this repo has no Blender and no
+FBX converter, so a `.blend` is unreadable here by design, not by accident.
+
+```bash
+node skyuss/tools/model-report.mjs --in model.obj --json   # machine-readable
+```
+
 ### Bringing in a hull you own
 
 `js/premium.js` has one slot per shipyard hull:
