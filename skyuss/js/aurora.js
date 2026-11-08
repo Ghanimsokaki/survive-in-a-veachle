@@ -182,18 +182,20 @@ export function buildAurora(THREE, ship) {
    * Swap the procedural skin for a real mesh (the bought TurboSquid hull).
    * The glows, shield bubble and lights stay, so gameplay reads the same.
    */
+  // hull materials hide when a real mesh takes over; the glows stay lit
+  const structural = new Set([hullMat, lightMat, trimMat, darkMat, glassMat]);
   root.userData.setPremium = (mesh, opts = {}) => {
     if (!mesh) return false;
     const box = new THREE.Box3().setFromObject(mesh);
     const size = box.getSize(new THREE.Vector3());
     const target = opts.length || 30;                      // metres nose to stern
     const longest = Math.max(size.x, size.y, size.z) || 1;
-    const k = target / longest;
-    mesh.scale.setScalar(k);
+    mesh.scale.setScalar(target / longest);
     box.setFromObject(mesh);
-    const centre = box.getCenter(new THREE.Vector3());
-    mesh.position.sub(centre);                             // centre on the hull origin
-    body.visible = false;                                  // hide the placeholder
+    mesh.position.sub(box.getCenter(new THREE.Vector3()));  // centre on the hull origin
+    if (opts.rotY) mesh.rotation.y += opts.rotY;
+    // hide the placeholder skin, keep every emissive part so engines still glow
+    body.traverse((o) => { if (o.isMesh && structural.has(o.material)) o.visible = false; });
     root.add(mesh);
     root.userData.premium = true;
     return true;

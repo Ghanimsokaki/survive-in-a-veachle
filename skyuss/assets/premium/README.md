@@ -1,5 +1,9 @@
 # Bought hulls (drop folder)
 
+> **The courier already flies a real model.** The Aurora-class ships with the CC0
+> *Dispatcher* hull in `skyuss/assets/models/quaternius/`. This folder is only for a
+> hull **you** bought, and it takes priority over that one.
+
 The shipyard sells the **Aurora-class courier**, modelled after the free TurboSquid
 *"Avrora" Sci-Fi Spaceship* (product 1577480, TurboSquid Royalty Free licence).
 

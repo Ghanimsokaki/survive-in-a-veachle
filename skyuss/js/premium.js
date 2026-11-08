@@ -1,13 +1,20 @@
-// Drop-in slot for a bought hull.
+// Loading bought / third-party hulls.
 //
-// A TurboSquid purchase may be used inside a game but the model file itself may
-// not be redistributed, so the mesh never lives in this repo. Put it here and
-// the game picks it up:
+// Two sources, in priority order:
 //
-//   skyuss/assets/premium/avrora.obj     <- the bought "Avrora" hull (OBJ export)
+//  1. skyuss/assets/premium/avrora.obj — a hull the *player* bought (e.g. the
+//     TurboSquid "Avrora"). The licence allows the mesh inside a game but not
+//     redistribution, so that folder is git-ignored and empty in the repo.
 //
-// The folder is git-ignored on purpose. With no file present the game flies the
-// procedural Aurora stand-in from js/aurora.js, so nothing breaks.
+//  2. skyuss/assets/models/quaternius/dispatcher.obj — "Dispatcher" from the
+//     Quaternius Ultimate Spaceships Pack, CC0 1.0, committed with credit. This
+//     is what the Aurora-class courier actually flies out of the box.
+//
+// With neither present the game keeps its procedural hull from js/aurora.js, so
+// nothing here can break the game.
+//
+// No Three.js import: the caller passes THREE in, which keeps this testable in
+// Node (the OBJ reader is pure string → typed array).
 
 export const PREMIUM_DIR = 'assets/premium/';
 export const PREMIUM_CANDIDATES = [
@@ -16,13 +23,28 @@ export const PREMIUM_CANDIDATES = [
   'assets/premium/aurora.obj',
 ];
 
+/** Committed, licence-clean hulls. */
+export const HULL_MODELS = {
+  aurora: {
+    id: 'aurora',
+    name: 'Dispatcher',
+    url: 'assets/models/quaternius/dispatcher.obj',
+    texture: 'assets/models/quaternius/dispatcher_blue.jpg',
+    length: 30,
+    credit: 'Dispatcher — Quaternius Ultimate Spaceships Pack (CC0 1.0)',
+    source: 'https://quaternius.com/packs/ultimatespaceships.html',
+  },
+};
+
 /**
- * Minimal Wavefront OBJ reader: vertices, faces, fan-triangulated quads, negative
- * indices, `o`/`g` ignored. Enough for a static hull export.
+ * Minimal Wavefront OBJ reader: `v`, `vt` and `f` (with `v`, `v/vt` or `v//vn`
+ * corners). Quads and n-gons are fan-triangulated, negative indices resolved.
+ * Returns flat per-corner arrays ready for a BufferGeometry, or null.
  */
 export function parseOBJ(text) {
   const verts = [];
-  const tris = [];
+  const tex = [];
+  const corners = [];
   const lines = text.split(/\r?\n/);
   for (const raw of lines) {
     const line = raw.trim();
@@ -30,64 +52,138 @@ export function parseOBJ(text) {
     if (line.startsWith('v ')) {
       const p = line.split(/\s+/);
       verts.push(Number(p[1]) || 0, Number(p[2]) || 0, Number(p[3]) || 0);
+    } else if (line.startsWith('vt ')) {
+      const p = line.split(/\s+/);
+      tex.push(Number(p[1]) || 0, Number(p[2]) || 0);
     } else if (line.startsWith('f ')) {
       const parts = line.split(/\s+/).slice(1);
-      const idx = parts.map((tok) => {
-        const n = parseInt(tok.split('/')[0], 10);
-        if (!Number.isFinite(n) || n === 0) return -1;
-        return n < 0 ? verts.length / 3 + n : n - 1;      // 1-based, negatives count back
-      }).filter((n) => n >= 0);
-      for (let i = 1; i + 1 < idx.length; i++) tris.push(idx[0], idx[i], idx[i + 1]);
+      const face = [];
+      for (const tok of parts) {
+        const seg = tok.split('/');
+        const vi = parseInt(seg[0], 10);
+        if (!Number.isFinite(vi) || vi === 0) continue;
+        const ti = seg.length > 1 && seg[1] ? parseInt(seg[1], 10) : 0;
+        face.push({
+          v: vi < 0 ? verts.length / 3 + vi : vi - 1,
+          t: ti > 0 ? ti - 1 : ti < 0 ? tex.length / 2 + ti : -1,
+        });
+      }
+      for (let i = 1; i + 1 < face.length; i++) corners.push(face[0], face[i], face[i + 1]);
     }
   }
-  if (!tris.length) return null;
-  const pos = new Float32Array(tris.length * 3);
-  for (let i = 0; i < tris.length; i++) {
-    const v = tris[i] * 3;
-    pos[i * 3] = verts[v] || 0;
-    pos[i * 3 + 1] = verts[v + 1] || 0;
-    pos[i * 3 + 2] = verts[v + 2] || 0;
+  if (!corners.length) return null;
+
+  const n = corners.length;
+  const positions = new Float32Array(n * 3);
+  const uvs = new Float32Array(n * 2);
+  let hasUV = false;
+  for (let i = 0; i < n; i++) {
+    const c = corners[i];
+    positions[i * 3] = verts[c.v * 3] || 0;
+    positions[i * 3 + 1] = verts[c.v * 3 + 1] || 0;
+    positions[i * 3 + 2] = verts[c.v * 3 + 2] || 0;
+    if (c.t >= 0) {
+      uvs[i * 2] = tex[c.t * 2] || 0;
+      uvs[i * 2 + 1] = tex[c.t * 2 + 1] || 0;
+      hasUV = true;
+    }
   }
-  return { positions: pos, triangles: tris.length / 3, vertices: verts.length / 3 };
+  return {
+    positions,
+    uvs: hasUV ? uvs : null,
+    triangles: n / 3,
+    vertices: verts.length / 3,
+    uvCount: tex.length / 2,
+  };
 }
 
-/** Turn parsed OBJ data into a lit mesh ready to hang on the ship group. */
+/** Turn parsed OBJ data into a mesh ready to hang on the ship group. */
 export function objMesh(THREE, data, opts = {}) {
   if (!data) return null;
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(data.positions, 3));
+  if (data.uvs) geo.setAttribute('uv', new THREE.BufferAttribute(data.uvs, 2));
   geo.computeVertexNormals();
   geo.computeBoundingBox();
   const mat = new THREE.MeshStandardMaterial({
-    color: opts.color || '#c8d4e0',
-    roughness: opts.roughness ?? 0.45,
-    metalness: opts.metalness ?? 0.35,
+    color: opts.color || '#ffffff',
+    map: opts.map || null,
+    roughness: opts.roughness ?? 0.55,
+    metalness: opts.metalness ?? 0.18,
     side: THREE.DoubleSide,
   });
   const mesh = new THREE.Mesh(geo, mat);
-  mesh.name = 'premium-hull';
+  mesh.name = opts.name || 'hull-model';
   return mesh;
 }
 
+/** Centre a loaded mesh on the origin and scale its longest axis to `length`. */
+function fitMesh(THREE, mesh, length) {
+  const box = new THREE.Box3().setFromObject(mesh);
+  const size = box.getSize(new THREE.Vector3());
+  const longest = Math.max(size.x, size.y, size.z) || 1;
+  mesh.scale.setScalar(length / longest);
+  box.setFromObject(mesh);
+  const centre = box.getCenter(new THREE.Vector3());
+  mesh.position.sub(centre);
+  return { size, scale: length / longest };
+}
+
+async function readText(fetchImpl, url) {
+  const res = await fetchImpl(url, { cache: 'no-store' });
+  if (!res || !res.ok) return null;
+  const text = await res.text();
+  return text && text.includes('f ') ? text : null;
+}
+
 /**
- * Look for a bought hull on disk. Returns `{ mesh, source, triangles }` or null.
- * `fetch` is injectable so the headless tests can feed it a fake file.
+ * A hull the player bought and dropped in. No texture is assumed: the file may
+ * reference maps this reader does not resolve, so it is lit as a plain hull.
  */
 export async function loadPremium(THREE, opts = {}) {
   const fetchImpl = opts.fetch || (typeof fetch === 'function' ? fetch : null);
   if (!fetchImpl) return null;
-  const urls = opts.urls || PREMIUM_CANDIDATES;
-  for (const url of urls) {
+  for (const url of opts.urls || PREMIUM_CANDIDATES) {
     try {
-      const res = await fetchImpl(url, { cache: 'no-store' });
-      if (!res || !res.ok) continue;
-      const text = await res.text();
+      const text = await readText(fetchImpl, url);
+      if (!text) continue;
       const data = parseOBJ(text);
       if (!data) continue;
-      return { mesh: objMesh(THREE, data, opts), source: url, triangles: data.triangles };
+      const mesh = objMesh(THREE, data, { color: opts.color || '#c8d4e0', name: 'premium-hull' });
+      const fit = fitMesh(THREE, mesh, opts.length || 30);
+      return { mesh, source: url, triangles: data.triangles, scale: fit.scale, bought: true };
     } catch (err) {
-      /* no file, offline, wrong format — the stand-in ship keeps flying */
+      /* missing file, offline, unreadable — the stand-in hull keeps flying */
     }
   }
   return null;
+}
+
+/**
+ * A committed CC0 hull (the Dispatcher courier). Loads its palette texture when
+ * a `texLoader` is supplied, which the browser layer does.
+ */
+export async function loadCommittedHull(THREE, id = 'aurora', opts = {}) {
+  const model = HULL_MODELS[id];
+  if (!model) return null;
+  const fetchImpl = opts.fetch || (typeof fetch === 'function' ? fetch : null);
+  if (!fetchImpl) return null;
+  try {
+    const text = await readText(fetchImpl, opts.url || model.url);
+    if (!text) return null;
+    const data = parseOBJ(text);
+    if (!data) return null;
+    let map = null;
+    if (opts.texLoader && model.texture) {
+      try { map = opts.texLoader(model.texture); } catch (err) { map = null; }
+    }
+    const mesh = objMesh(THREE, data, { map, color: '#ffffff', name: 'hull-' + id });
+    const fit = fitMesh(THREE, mesh, opts.length || model.length);
+    return {
+      mesh, source: model.url, texture: map ? model.texture : null,
+      triangles: data.triangles, scale: fit.scale, credit: model.credit, name: model.name,
+    };
+  } catch (err) {
+    return null;
+  }
 }

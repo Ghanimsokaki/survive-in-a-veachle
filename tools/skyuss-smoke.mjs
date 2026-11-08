@@ -8,7 +8,7 @@ import { SkyGame } from '../skyuss/js/sim.js';
 import { generateWorld, generateCell, WorldStream, buildIsland, buildDerelict, buildStorm, buildHomeBeacon } from '../skyuss/js/world.js';
 import { FORT, FORT_PIECES, SHIP_UPGRADES, WORLD, CREDITS, PHOTO_CONTRACTS, SHIPYARD } from '../skyuss/js/config.js';
 import { buildAurora } from '../skyuss/js/aurora.js';
-import { parseOBJ, objMesh } from '../skyuss/js/premium.js';
+import { parseOBJ, objMesh, loadPremium, loadCommittedHull, HULL_MODELS, PREMIUM_CANDIDATES } from '../skyuss/js/premium.js';
 
 const errors = [];
 const assert = (cond, msg) => {
@@ -671,8 +671,41 @@ section('the Aurora mesh and the bought-hull loader');
 
   const swapped = mesh.userData.setPremium(objMesh(THREE, data), { length: 30 });
   assert(swapped === true && mesh.userData.premium === true, 'a bought mesh can replace the placeholder');
-  const hud = mesh.children.find((c) => c.name === 'aurora-hull');
-  assert(!hud.visible, 'the placeholder hull hides behind the bought mesh');
+  const hullGroup = mesh.children.find((c) => c.name === 'aurora-hull');
+  assert(!hullGroup.visible === false, 'the hull group stays in the graph for its glows');
+  const hiddenHull = [];
+  hullGroup.traverse((o) => { if (o.isMesh && !o.visible) hiddenHull.push(o); });
+  assert(hiddenHull.length > 8, `the placeholder skin hides when a real mesh loads (${hiddenHull.length} meshes)`);
+  assert(parts.exhaust.every((e) => e.visible) && parts.grilles.every((g) => g.visible),
+    'engine glows keep burning on the bought hull');
+
+  // the committed CC0 courier that actually ships with the game
+  {
+    const fs = await import('node:fs');
+    const raw = fs.readFileSync(new URL('../skyuss/assets/models/quaternius/dispatcher.obj', import.meta.url), 'utf8');
+    const obj = parseOBJ(raw);
+    assert(!!obj, 'the shipped Dispatcher OBJ parses');
+    assert(obj.triangles > 600 && obj.vertices > 300, `it is a real mesh (${obj.vertices} verts, ${obj.triangles} tris)`);
+    assert(obj.uvCount === 733, 'all 733 UVs are read out of the OBJ');
+    assert(!!obj.uvs && obj.uvs.length === obj.triangles * 6, 'every triangle corner carries a UV');
+    const model = objMesh(THREE, obj, {});
+    assert(!!model.geometry.attributes.uv, 'the courier mesh carries UVs, so the palette texture maps');
+    assert(obj.positions.length === obj.triangles * 9, 'it is non-indexed and ready to draw');
+
+    const fake = async (url) => ({ ok: /\.obj$/.test(String(url)), text: async () => raw });
+    const hull = await loadCommittedHull(THREE, 'aurora', { fetch: fake, texLoader: () => new THREE.Texture() });
+    assert(!!hull && hull.triangles === obj.triangles, 'loadCommittedHull() builds the courier');
+    assert(/Quaternius/.test(hull.credit || ''), 'the CC0 credit travels with the model');
+    const box = new THREE.Box3().setFromObject(hull.mesh);
+    const size = box.getSize(new THREE.Vector3());
+    assert(Math.abs(Math.max(size.x, size.y, size.z) - 30) < 0.01, 'it is fitted to a 30 m hull');
+    assert(Math.abs(box.getCenter(new THREE.Vector3()).length()) < 0.05, 'and centred on the flight origin');
+
+    const bought = await loadPremium(THREE, { fetch: fake, urls: ['assets/premium/avrora.obj'] });
+    assert(!!bought && bought.bought === true, 'a dropped-in bought hull still takes priority');
+    const none = await loadPremium(THREE, { fetch: async () => ({ ok: false, text: async () => '' }) });
+    assert(none === null, 'with no bought file the loader reports nothing instead of throwing');
+  }
 }
 
 section('effects bus + audio module');

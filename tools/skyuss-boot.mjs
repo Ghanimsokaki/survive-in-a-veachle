@@ -126,6 +126,14 @@ const assert = (cond, msg) => {
 };
 const frames = () => new Promise((r) => setTimeout(r, 350));
 
+// serve the committed CC0 courier OBJ to the loader without touching the disk
+const courierOBJ = fs.readFileSync(new URL('../skyuss/assets/models/quaternius/dispatcher.obj', import.meta.url), 'utf8');
+globalThis.fetch = async (url) => {
+  const u = String(url);
+  if (u.endsWith('dispatcher.obj')) return { ok: true, text: async () => courierOBJ };
+  return { ok: false, status: 404, text: async () => '' };
+};
+
 await import('../skyuss/js/main.js');
 assert(true, 'main.js boots with a WebGL context (renderer, shaders, scene)');
 
@@ -448,6 +456,8 @@ key('Escape'); await frames();
   flyBtn.dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true }));
   await frames();
   assert(live().hullId === 'aurora', 'flying it switches the hull');
+  await frames();
+  assert(window.__skyuss.shipHull === 'model', 'the bought hull swaps in the real 3D model (Quaternius, CC0)');
   assert(balance() === String(live().credits), 'the panel re-reads the balance after a purchase');
 
   const board = document.getElementById('yardContracts');

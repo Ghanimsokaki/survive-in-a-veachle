@@ -124,28 +124,34 @@ testable headlessly.
 hull. Refits stack on top of it — the hull class multiplies the airframe, the refit tree is
 unchanged.
 
-### The Aurora model
+### The Aurora model — a real downloaded mesh, CC0
 
-`js/aurora.js` builds the courier procedurally (lathed fuselage, forward-swept prongs, canopy,
-twin nacelles with exhaust discs, dorsal fin, lit windows, mine-red / starboard-green running
-lights, shield bubble) and exposes the same `userData.parts` contract as the Enterprise, so the
-renderer animates both with one code path.
+The courier flies the **Dispatcher** from Quaternius' *Ultimate Spaceships Pack*: 748 triangles,
+405 vertices, 733 UVs, textured from its own 512² palette atlas. **CC0 1.0 (public domain)**, so
+the file is committed with credit in `skyuss/assets/models/quaternius/` (see that folder's
+README for the source, the exact changes and the licence text).
 
-![the Aurora-class courier](shots/aurora-preview.png)
+![the Aurora-class courier](shots/aurora-class.png)
 
-It is modelled after the free TurboSquid *"Avrora" Sci-Fi Spaceship*
-([product 1577480](https://www.turbosquid.com/3d-models/space-spaceship-sci-fi-3d-1577480),
-TurboSquid Royalty Free licence). That licence lets a bought model ship **inside** a game but
-not the model file itself, so the real mesh is a drop-in that never enters this repo:
+`js/premium.js` is a dependency-free OBJ reader (`v`, `vt`, `f` with `v`, `v/vt` and `v//vn`,
+fan-triangulated n-gons, negative indices) plus a loader that centres the mesh on the flight
+origin and scales its longest axis to 30 m. The loaded mesh replaces the procedural skin while
+every emissive part — exhaust discs, grille glow, running lights, shield bubble — keeps burning,
+because both hulls expose the same `userData.parts` contract.
 
-1. download the Avrora and keep the **OBJ**;
-2. save it as `skyuss/assets/premium/avrora.obj` (the folder is git-ignored on purpose);
-3. buy the courier in the shipyard.
+`js/aurora.js` is still there as the fallback: a procedural courier (lathed fuselage,
+forward-swept prongs, canopy, twin nacelles, dorsal fin, lit windows, shield bubble) that flies
+if a texture or mesh ever fails to load.
 
-`js/premium.js` parses the OBJ (fan-triangulated quads, negative indices, no dependencies),
-centres and scales it to ~30 m and calls `setPremium()` — the placeholder hull hides, the
-engine glows, running lights and shield bubble stay. With no file present the procedural hull
-flies instead, so the game is never broken and no licence is involved.
+**A bought hull takes priority.** TurboSquid's Royalty Free licence allows a model inside a game
+but not redistribution of the file, so that route stays a local drop-in:
+
+1. buy + download (e.g. the *"Avrora"* [product 1577480](https://www.turbosquid.com/3d-models/space-spaceship-sci-fi-3d-1577480)) and keep the **OBJ**;
+2. save it as `skyuss/assets/premium/avrora.obj` (git-ignored on purpose);
+3. buy the courier in the shipyard — `loadPremium()` wins over the committed CC0 mesh.
+
+`npm run preview:hull` re-renders the preview above straight from the shipped OBJ (the offline
+rasteriser has no texture sampling, so the tool bakes the palette into vertex colours first).
 
 ## The sky fortress
 
@@ -271,7 +277,7 @@ skyuss/
   js/main.js          renderer, cloud sea, camera rig, input, scene sync, VFX
   js/audio.js         synthesised WebAudio (no assets)
   js/touch.js         thumb-stick / look-pad / action buttons for phones
-tools/skyuss-smoke.mjs   headless test: 265 assertions, no GPU required
+tools/skyuss-smoke.mjs   headless test: 279 assertions, no GPU required
 ```
 
 The split is deliberate: **`sim.js` never imports Three.js and `main.js` never owns game
@@ -293,8 +299,8 @@ Useful because jsdom has no WebGL: this is how the hull proportions get reviewed
 ## Tests
 
 ```bash
-npm run smoke:skyuss        # 265 assertions: sim + streaming + meshes, no GPU
-npm run smoke:skyuss:boot   # 82 assertions: boots the real renderer headlessly
+npm run smoke:skyuss        # 279 assertions: sim + streaming + meshes, no GPU
+npm run smoke:skyuss:boot   # 83 assertions: boots the real renderer headlessly
 npm run check               # syntax-check both games
 npm run test:all            # every suite in this repo
 ```

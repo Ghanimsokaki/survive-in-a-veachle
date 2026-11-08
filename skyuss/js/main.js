@@ -5,7 +5,7 @@ import * as THREE from '../vendor/three.module.js';
 import { SkyGame } from './sim.js';
 import { buildEnterprise } from './enterprise.js';
 import { buildAurora } from './aurora.js';
-import { loadPremium } from './premium.js';
+import { loadPremium, loadCommittedHull } from './premium.js';
 import { PHOTO_CONTRACTS } from './config.js';
 import { buildFort, buildFortGrid } from './fort.js';
 import { buildIsland, buildDerelict, buildStorm, buildHomeBeacon } from './world.js';
@@ -389,6 +389,7 @@ function disposeGroup(obj) {
 // ------------------------------------------------------------------ the ship
 function rebuildShipMesh() {
   if (shipMesh) disposeGroup(shipMesh);
+  premiumTried = false;
   const aurora = game.hullId === 'aurora';
   shipMesh = aurora ? buildAurora(THREE, game.ship) : buildEnterprise(THREE, game.ship);
   scene.add(shipMesh);
@@ -404,12 +405,34 @@ let premiumTried = false;
 function adoptPremiumHull() {
   if (premiumTried || !shipMesh || !shipMesh.userData.setPremium) return;
   premiumTried = true;
+  // 1. a hull the player bought and dropped into assets/premium/ wins
   loadPremium(THREE).then((found) => {
-    if (!found || !shipMesh || !shipMesh.userData.setPremium) return;
+    if (!found) {
+      // 2. otherwise fly the committed CC0 courier (Quaternius Dispatcher)
+      return loadCommittedHull(THREE, 'aurora', {
+        length: 30,
+        texLoader: (url) => {
+          const tex = new THREE.TextureLoader().load(url, undefined, undefined, () => {});
+          tex.colorSpace = THREE.SRGBColorSpace;
+          tex.anisotropy = 4;
+          tex.wrapS = THREE.ClampToEdgeWrapping;
+          tex.wrapT = THREE.ClampToEdgeWrapping;
+          return tex;
+        },
+      }).then((hull) => {
+        if (!hull) return null;
+        shipMesh.userData.setPremium(hull.mesh, { length: 30 });
+        UI.toast('🛠️ ' + hull.credit, 'good');
+        console.info('[skyuss] courier hull', hull.source, hull.triangles, 'triangles');
+        return hull;
+      });
+    }
+    if (!shipMesh || !shipMesh.userData.setPremium) return null;
     shipMesh.userData.setPremium(found.mesh, { length: 30 });
     UI.toast('🛠️ Bought hull loaded: ' + found.source, 'good');
     console.info('[skyuss] premium hull', found.source, found.triangles, 'triangles');
-  }).catch(() => { /* stand-in hull keeps flying */ });
+    return found;
+  }).catch(() => { /* the procedural hull keeps flying */ });
 }
 
 function rebuildFort() {
@@ -1343,6 +1366,7 @@ window.__skyuss = {
   takePhoto: () => takePhoto(),
   get worldCells() { return worldCells; },
   get camMode() { return state.camMode; },
+  get shipHull() { return shipMesh && shipMesh.userData.premium ? 'model' : 'procedural'; },
   get orbit() { return state.orbit; },
   get free() { return state.free; },
   get worldGroup() { return worldGroup; },

@@ -14,7 +14,8 @@
     "smoke:skyuss": "node tools/skyuss-smoke.mjs",
     "test:all": "node tools/smoke.mjs && node tools/skyuss-smoke.mjs && node tools/skyuss-boot.mjs",
     "smoke:skyuss:boot": "node tools/skyuss-boot.mjs",
-    "shots:skyuss": "node skyuss/tools/ship-preview.mjs --out shots/skyuss-ship.png && node skyuss/tools/world-preview.mjs --out shots/skyuss-world.png"
+    "shots:skyuss": "node skyuss/tools/ship-preview.mjs --out shots/skyuss-ship.png && node skyuss/tools/world-preview.mjs --out shots/skyuss-world.png && node skyuss/tools/hull-preview.mjs --out shots/aurora-class.png",
+    "preview:hull": "node skyuss/tools/hull-preview.mjs --out shots/aurora-class.png"
   },
   "devDependencies": {
     "@napi-rs/canvas": "^1.1.0",
