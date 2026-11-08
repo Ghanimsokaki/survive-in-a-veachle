@@ -133,6 +133,36 @@ top of a bought hull — the hull class multiplies the airframe, the refit tree 
 Both are photo subjects in their own right (400 ¢ and 600 ¢ once each), and the dreadnought
 has its own dropped-mesh slot — see `skyuss/assets/premium/README.md`.
 
+**The Vengeance goes in the Kang slot.** `model.fbx` in the owner's library is the USS Vengeance
+(Dreadnought-class, ~1450 m), and it is the *good* bought hull — export it to OBJ as
+`skyuss/assets/premium/kang.obj` and `loadPremium()` flies it in place of the procedural
+dreadnought. The mesh itself is never committed: the licence belongs to whoever bought it, and
+the repo keeps only the procedural hull plus the drop slot.
+
+### The enemy capital ship — designed here, not licensed
+
+The player's big hull is meant to be a bought mesh; the *hostile* one could not be, so it is
+built from primitives in `js/reaver.js` — our own silhouette, nothing to licence, nothing that
+can be pulled offline. It is the **Reaver Dreadnought** (`PIRATE_TYPES.behemoth`): 1,500 hull,
+size 4.5, `boss: true`, 750 ¢ bounty plus a heavy cargo drop.
+
+![the Reaver dreadnought](docs/reaver-dreadnought.png)
+
+93 meshes, ~1,760 triangles, ~31 m long — forward mandibles bracketing a spinal cannon whose core
+turns as it fires, armour shoulders, a stepped bridge island with sensor spires, four exposed
+engine bells that breathe, a ventral hangar maw that glows, twelve running lights and fourteen
+deterministic hull greebles. Nose points +Z like every other actor, so `rotation.y` means the
+same thing for the whole scene.
+
+From the sixth siege onwards a Reaver always leads the wave:
+
+```js
+if (this.siegeWave >= 6) types.push('behemoth', 'dread');
+… then one guaranteed spawn, announced: 'A Reaver dreadnought has entered the system — kill it or run.'
+```
+
+`npm run shots:skyuss` renders it (`node skyuss/tools/ship-preview.mjs --hull reaver --out …`).
+
 ### The Aurora model — a real downloaded mesh, CC0
 
 The courier flies the **Dispatcher** from Quaternius' *Ultimate Spaceships Pack*: 748 triangles,
@@ -404,7 +434,7 @@ skyuss/
   js/main.js          renderer, cloud sea, camera rig, input, scene sync, VFX
   js/audio.js         synthesised WebAudio (no assets)
   js/touch.js         thumb-stick / look-pad / action buttons for phones
-tools/skyuss-smoke.mjs   headless test: 344 assertions, no GPU required
+tools/skyuss-smoke.mjs   headless test: 373 assertions, no GPU required
 ```
 
 The split is deliberate: **`sim.js` never imports Three.js and `main.js` never owns game
@@ -426,7 +456,7 @@ Useful because jsdom has no WebGL: this is how the hull proportions get reviewed
 ## Tests
 
 ```bash
-npm run smoke:skyuss        # 344 assertions: sim + streaming + meshes, no GPU
+npm run smoke:skyuss        # 373 assertions: sim + streaming + meshes, no GPU
 npm run smoke:skyuss:boot   # 83 assertions: boots the real renderer headlessly
 npm run check               # syntax-check both games
 npm run test:all            # every suite in this repo

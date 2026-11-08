@@ -22,6 +22,10 @@ and `.glb` cannot be read here.
 | Aurora-class courier | `avrora.obj` (or `aurora.obj`) | 30 m |
 | Kang-class dreadnought | `kang.obj` (or `kang_dreadnought.obj`) | 62 m |
 
+**The Kang slot is where the USS Vengeance goes.** `model.fbx` in the owner's library is the
+Dreadnought-class Vengeance, and it is the good one — export it to OBJ and it flies as the
+player's 9,000 ¢ dreadnought. Nothing about that file is committed; this folder stays ignored.
+
 1. Buy + download the hull you want (e.g. the *"Avrora"*
    <https://www.turbosquid.com/3d-models/space-spaceship-sci-fi-3d-1577480>) and export the **OBJ**.
 2. Drop it here under the name above — or run the importer, which validates the mesh,

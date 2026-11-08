@@ -9,7 +9,7 @@
       "origin": "Star Trek Into Darkness (2013)",
       "licence": "unverified fan model \u2014 keep out of the repo, drop folder only",
       "ready": false,
-      "note": "Binary FBX. This repo has no FBX reader: export OBJ or GLB from Blender, then run tools/import-hull.mjs."
+      "note": "Binary FBX. This repo has no FBX reader: export OBJ or GLB from Blender, then run tools/import-hull.mjs. Export from Blender and save as skyuss/assets/premium/kang.obj \u2014 the Kang-class slot flies it."
     },
     {
       "match": "NCC1701D_FIND.blend",

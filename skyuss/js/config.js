@@ -153,6 +153,8 @@ export const PIRATE_TYPES = {
   raider: { name: 'Raider', hp: 130, speed: 24, damage: 11, range: 210, rate: 1.1, size: 1.3, bounty: { titanium: 30, dilithium: 10 } },
   siege: { name: 'Siege Barge', hp: 320, speed: 15, damage: 20, range: 260, rate: 1.6, size: 2, bounty: { titanium: 70, dilithium: 26, matrix: 1 } },
   dread: { name: 'Dread Corsair', hp: 620, speed: 13, damage: 28, range: 300, rate: 1.3, size: 2.6, bounty: { titanium: 140, dilithium: 60, matrix: 3 } },
+  // siege flagship — our own design (js/reaver.js), not a licensed hull
+  behemoth: { name: 'Reaver Dreadnought', hp: 1500, speed: 10, damage: 44, range: 340, rate: 1.7, size: 4.5, boss: true, bounty: { titanium: 320, dilithium: 140, matrix: 8 } },
 };
 
 export const SIEGE = {
@@ -177,7 +179,7 @@ export const SCAVENGE = {
  */
 export const CREDITS = {
   start: 250,
-  kill: { skiff: 40, raider: 75, siege: 120, dread: 300 },
+  kill: { skiff: 40, raider: 75, siege: 120, dread: 300, behemoth: 750 },
 };
 
 /** Every subject kind you can sell a photo of, and what the first shot pays. */
@@ -212,7 +214,7 @@ export const SHIPYARD = {
       id: 'kang',
       name: 'Kang-class dreadnought',
       price: 9000,
-      blurb: 'A battleship: twice the hull, three nacelles, none of the subtlety.',
+      blurb: 'A battleship: twice the hull, three nacelles, none of the subtlety. The Vengeance OBJ flies here.',
       stats: { speed: '×0.72', hull: '×2.20', turn: '×0.70' },
     },
   ],

@@ -6,6 +6,7 @@ import { SkyGame } from './sim.js';
 import { buildEnterprise } from './enterprise.js';
 import { buildAurora } from './aurora.js';
 import { buildDreadnought } from './dreadnought.js';
+import { buildReaverDreadnought } from './reaver.js';
 import { loadPremium, loadCommittedHull, HULL_MODELS } from './premium.js';
 import { PHOTO_CONTRACTS } from './config.js';
 import { buildFort, buildFortGrid } from './fort.js';
@@ -1182,6 +1183,16 @@ function syncEnemies() {
     g.rotation.z = Math.sin(game.t * 2 + e.pos.x * 0.01) * 0.08;
     const glowMat = g.userData.glow;
     if (glowMat) glowMat.opacity = 0.5 + Math.sin(game.t * 7 + e.pos.x) * 0.3;
+    if (g.userData.kind === 'reaver') {
+      // bigger ship, slower pulse: engine bells breathe, the spinal core turns
+      const pulse = 0.55 + Math.sin(game.t * 2.2 + e.pos.z * 0.01) * 0.3;
+      for (const m of g.userData.glowMats) {
+        if (m.transparent) m.opacity = pulse;
+        else m.emissiveIntensity = 1.4 + pulse * 1.8;
+      }
+      if (g.userData.core) g.userData.core.rotation.z += 0.02;
+      g.rotation.x = Math.sin(game.t * 0.8 + e.pos.z * 0.01) * 0.05;
+    }
   }
   for (const [id, g] of enemyMeshes) {
     if (!seen.has(id)) {
@@ -1192,6 +1203,8 @@ function syncEnemies() {
 }
 
 function makePirate(e) {
+  // the siege flagship is a hand-built capital ship, everything else is the raider kit
+  if (e.type === 'behemoth') return buildReaverDreadnought(THREE, { size: e.def.size, seed: e.id * 2654435761 % 4294967296 });
   const g = new THREE.Group();
   const s = e.def.size;
   const hull = new THREE.MeshStandardMaterial({ color: '#3b2a2a', metalness: 0.7, roughness: 0.55, flatShading: true });

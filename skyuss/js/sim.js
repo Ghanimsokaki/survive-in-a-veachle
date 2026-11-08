@@ -502,6 +502,7 @@ export class SkyGame {
     const types = ['skiff', 'skiff', 'raider'];
     if (this.siegeWave >= 2) types.push('siege');
     if (this.siegeWave >= 4) types.push('dread');
+    if (this.siegeWave >= 6) types.push('behemoth', 'dread');
     const base = targetIsFort ? this.fort : this.pos;
     for (let i = 0; i < count; i++) {
       const a = (i / count) * Math.PI * 2 + Math.random();
@@ -514,6 +515,17 @@ export class SkyGame {
       e.target = targetIsFort ? 'fort' : 'ship';
     }
     this.emit('bad', targetIsFort ? 'SIEGE: hostile fleet inbound on the fortress!' : 'Pirate squadron on your tail.');
+    // from the sixth siege onwards a Reaver dreadnought always leads the wave
+    if (this.siegeWave >= 6) {
+      const a = Math.random() * Math.PI * 2;
+      const boss = this.spawnEnemy('behemoth', {
+        x: base.x + Math.cos(a) * 320,
+        y: base.y + 20,
+        z: base.z + Math.sin(a) * 320,
+      });
+      boss.target = targetIsFort ? 'fort' : 'ship';
+      this.emit('bad', 'A Reaver dreadnought has entered the system — kill it or run.');
+    }
   }
 
   // ------------------------------------------------------------------ flight

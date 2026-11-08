@@ -6,9 +6,10 @@ import { Enterprise, buildEnterprise, tierRows, COMPONENTS, MAX_TIER } from '../
 import { SkyFort, buildFort, buildFortGrid } from '../skyuss/js/fort.js';
 import { SkyGame } from '../skyuss/js/sim.js';
 import { generateWorld, generateCell, WorldStream, buildIsland, buildDerelict, buildStorm, buildHomeBeacon } from '../skyuss/js/world.js';
-import { FORT, FORT_PIECES, SHIP_UPGRADES, WORLD, CREDITS, PHOTO_CONTRACTS, SHIPYARD } from '../skyuss/js/config.js';
+import { FORT, FORT_PIECES, SHIP_UPGRADES, WORLD, CREDITS, PHOTO_CONTRACTS, SHIPYARD, PIRATE_TYPES } from '../skyuss/js/config.js';
 import { buildAurora } from '../skyuss/js/aurora.js';
 import { buildDreadnought } from '../skyuss/js/dreadnought.js';
+import { buildReaverDreadnought } from '../skyuss/js/reaver.js';
 import { parseOBJ, objMesh, loadPremium, loadCommittedHull, HULL_MODELS, PREMIUM_CANDIDATES, PREMIUM_FILES } from '../skyuss/js/premium.js';
 import { structureOBJ, structureGLB, shapeOf, matchClasses, reportFile, knownModel, knownList, identityBlock } from '../skyuss/tools/model-report.mjs';
 import { resolveUrl, treeUrl, diagnose, human, LIBRARY, DEFAULT_REPO, sha256File } from '../skyuss/tools/fetch-models.mjs';
@@ -746,6 +747,70 @@ section('the Kang-class dreadnought');
   const swapped = mesh.userData.setPremium(objMesh(THREE, parseOBJ(cube)), { length: 62 });
   assert(swapped === true && mesh.userData.premium === true, 'a dropped-in dreadnought mesh replaces the placeholder');
   assert(parts.exhaust.every((e) => e.visible), 'the three exhausts keep burning on the dropped mesh');
+}
+
+section('the Reaver dreadnought (the enemy we designed ourselves)');
+{
+  const def = PIRATE_TYPES.behemoth;
+  assert(!!def && def.name === 'Reaver Dreadnought', 'the hostile flagship is its own pirate type');
+  assert(def.boss === true && def.hp >= 1000, `it is a boss with ${def.hp} hull`);
+  assert(def.hp > PIRATE_TYPES.dread.hp * 2 && def.size > PIRATE_TYPES.dread.size, 'bigger and tougher than the Dread Corsair');
+  assert(def.bounty.matrix >= 6 && CREDITS.kill.behemoth === 750, 'killing it pays 750 credits plus a heavy bounty');
+
+  const g = buildReaverDreadnought(THREE, { size: 4.5 });
+  assert(g.isGroup && g.userData.kind === 'reaver', 'the mesh reports itself as a reaver');
+  let meshes = 0;
+  g.traverse((o) => { if (o.isMesh) meshes++; });
+  const parts = g.userData.parts;
+  assert(meshes >= 60, `it is a fully modelled capital ship (${meshes} meshes)`);
+  assert(parts.mandibles.length === 6, 'each mandible is a prong, an inner trench and a tip');
+  assert(parts.nozzles.length === 8, 'four engine bells with four glow discs');
+  assert(parts.shoulders.length === 4 && parts.ribs.length === 5, 'armour shoulders and exposed stern ribs');
+  assert(parts.lights.length === 12, 'a dozen running lights down the flanks');
+  assert(parts.spires.length === 2 && parts.greebles.length === 14, 'sensor spires and hull greebles');
+  assert(!!g.userData.glow && g.userData.glow.transparent, 'it has a pulsing glow material');
+  assert(g.userData.glowMats.length === 2 && !!g.userData.core, 'the engine glow and the turning spinal core are separate');
+
+  // proportions: it must be a long capital ship, and scale with size
+  const box = (obj) => { const b = new THREE.Box3().setFromObject(obj); const s = new THREE.Vector3(); b.getSize(s); return s; };
+  const dims = box(g);
+  assert(dims.z > dims.x * 2.1 && dims.z > dims.y * 1.8, `it is much longer than it is wide (${dims.z.toFixed(1)} x ${dims.x.toFixed(1)} x ${dims.y.toFixed(1)} m)`);
+  assert(Math.abs(dims.z - 31.5) < 4, 'at size 4.5 it is a ~31 m capital ship, the same footprint a size-4.5 raider gets');
+  const big = box(buildReaverDreadnought(THREE, { size: 9 }));
+  assert(Math.abs(big.z / dims.z - 2) < 0.05, 'doubling the size doubles the ship');
+
+  // it must fly nose-first, like every other actor
+  assert(new THREE.Box3().setFromObject(g).max.z > 5 * (4.5 / 4.5) * 1.4, 'the nose is at +Z so rotation.y turns it like the player ship');
+
+  // --- it spawns, it fights, it dies and it pays
+  const sim = new SkyGame({ seed: 77 });
+  sim.siegeWave = 6;
+  const before = sim.enemies.length;
+  sim.spawnWave(4, true);
+  const boss = sim.enemies.find((e) => e.type === 'behemoth');
+  assert(!!boss, 'the sixth siege puts a Reaver dreadnought in the wave');
+  assert(sim.enemies.length > before, 'and the rest of the wave still spawns');
+  assert(boss.target === 'fort', 'it goes for the fortress during a siege');
+  assert(sim.photoSubjects().some((s) => s.kind === 'pirate' && s.label === 'Reaver Dreadnought'), 'it is a photographable subject');
+
+  const credits = sim.credits;
+  sim.killEnemy(boss);
+  assert(sim.credits >= credits + 750, 'killing it pays the 750 credit bounty');
+  assert(sim.stats.kills >= 1 && sim.pickups.length >= 1, 'and scatters its cargo');
+
+  const early = new SkyGame({ seed: 78 });
+  early.siegeWave = 3;
+  early.spawnWave(4, false);
+  assert(!early.enemies.some((e) => e.type === 'behemoth'), 'early sieges stay clear of the flagship');
+
+  // --- the renderer has to actually use it
+  const fs = await import('node:fs');
+  const mainSrc = fs.readFileSync(new URL('../skyuss/js/main.js', import.meta.url), 'utf8');
+  assert(/import \{ buildReaverDreadnought \}/.test(mainSrc), 'main.js imports the reaver builder');
+  assert(/e\.type === 'behemoth'[^\n]*buildReaverDreadnought/.test(mainSrc), 'makePirate routes a behemoth to the capital-ship builder');
+  assert(/userData\.kind === 'reaver'/.test(mainSrc), 'and the renderer animates its glow and core');
+  const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  assert(/reaver\.js/.test(pkg.scripts.check), 'the syntax check covers the new module');
 }
 
 section('reading a model from the inside (identification)');
