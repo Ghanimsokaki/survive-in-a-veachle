@@ -400,6 +400,36 @@ const HULL_BUILDERS = {
   kang: buildDreadnought,
 };
 
+/**
+ * Paint the engine glow with the trail skin the player bought. Originals are
+ * remembered per mesh so switching back to Ion restores the stock colours.
+ */
+function applyCosmetics() {
+  if (!shipMesh || !game) return;
+  const trail = game.trailColour;                       // hex or null for stock
+  const stock = !game.cosmetics || game.cosmetics.trail === 'ion';
+  shipMesh.traverse((o) => {
+    if (!o.isMesh || !o.material || Array.isArray(o.material)) return;
+    const m = o.material;
+    const glows = (m.emissive && (m.emissiveIntensity || 0) > 0.4) || m.isMeshBasicMaterial;
+    if (!glows) return;
+    if (!o.userData._glow) {
+      o.userData._glow = {
+        color: m.color ? m.color.getHex() : null,
+        emissive: m.emissive ? m.emissive.getHex() : null,
+      };
+    }
+    const orig = o.userData._glow;
+    if (stock) {
+      if (m.color && orig.color != null) m.color.setHex(orig.color);
+      if (m.emissive && orig.emissive != null) m.emissive.setHex(orig.emissive);
+      return;
+    }
+    if (m.color) m.color.set(trail);
+    if (m.emissive) m.emissive.set(trail);
+  });
+}
+
 function rebuildShipMesh() {
   if (shipMesh) disposeGroup(shipMesh);
   premiumTried = false;
@@ -408,6 +438,7 @@ function rebuildShipMesh() {
   scene.add(shipMesh);
   shipSig = JSON.stringify(game.ship.toJSON ? game.ship.toJSON() : game.ship.tiers);
   if (builder) adoptPremiumHull(game.hullId);
+  applyCosmetics();
 }
 
 /**
@@ -597,6 +628,8 @@ UI.init({
   action: (act) => {
     if (!game) return;
     if (act === 'help') UI.toggle('help', game);
+    else if (act === 'shop') UI.toggle('shop', game);
+    else if (act === 'yard') UI.toggle('yard', game);
     else if (act === 'buildall') bulkBuild();
     else if (act === 'style') toggleFortStyle();
     else if (act === 'aim') toggleAimMode();
@@ -605,6 +638,20 @@ UI.init({
       UI.toast(on ? '🔊 Audio on' : '🔇 Audio muted', '');
       UI.setSoundIcon(on);
     } else handleAction(act);
+  },
+  buyItem: (id) => {
+    if (!game) return;
+    const res = game.buy(id);
+    audio.ui();
+    if (res.ok && res.item && res.item.kind === 'cosmetic') {
+      applyCosmetics();
+      audio.chime();
+      persist();
+    } else if (res.ok) {
+      audio.pickup();
+      persist();
+    }
+    UI.refreshShop(game);
   },
   buildAll: () => bulkBuild(),
   upgradeAll: () => upgradeAllRefits(),
@@ -755,6 +802,7 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'KeyB') { toggleBuild(); e.preventDefault(); }
   else if (k === 'KeyU') { UI.toggle('tiers', game); e.preventDefault(); }
   else if (k === 'KeyY') { UI.toggle('yard', game); e.preventDefault(); }
+  else if (k === 'KeyM') { UI.toggle('shop', game); e.preventDefault(); }
   else if (k === 'KeyH') { UI.toggle('help', game); e.preventDefault(); }
   else if (k === 'KeyF') { if (game.warp().ok) state.shake = 0.5; }
   else if (k === 'KeyE') doInteract();
@@ -1382,7 +1430,7 @@ function loop() {
     scene.fog.density = storm ? 0.006 : 0.0016;
     scene.fog.color.setHex(storm ? 0x6b5a9a : 0x9dc4e6);
     uiTick += dt;
-    if (uiTick > 0.06) { uiTick = 0; UI.update(game); }
+    if (uiTick > 0.06) { uiTick = 0; UI.update(game); UI.refreshWallet(game); }
   }
 
   renderer.render(scene, camera);
@@ -1399,6 +1447,7 @@ window.__skyuss = {
   rebuildFort: () => rebuildFort(),
   frameSubjects: () => framedSubjects(),
   refreshYard: () => UI.refreshYard(game),
+  refreshShop: () => UI.refreshShop(game),
   toggleCamera: () => toggleCameraMode(),
   takePhoto: () => takePhoto(),
   get worldCells() { return worldCells; },

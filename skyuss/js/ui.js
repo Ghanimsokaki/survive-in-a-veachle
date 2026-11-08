@@ -3,6 +3,7 @@
 
 import { tierRows } from './enterprise.js';
 import { FORT, FORT_PIECES, PIECE_ORDER, SHIPYARD } from './config.js';
+import { SHOP, shopView } from './shop.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -27,6 +28,8 @@ export const UI = {
       speedText: $('speedText'), warpLine: $('warpLine'),
       resTi: $('resTi'), resDi: $('resDi'), resMx: $('resMx'), resCr: $('resCr'),
       yardCredits: $('yardCredits'), yardShips: $('yardShips'), yardContracts: $('yardContracts'),
+      chipCredits: $('chipCredits'), chipShards: $('chipShards'),
+      shopCredits: $('shopCredits'), shopShards: $('shopShards'), shopItems: $('shopItems'), shopNote: $('shopNote'),
       cargoFill: $('cargoFill'), cargoText: $('cargoText'),
       lockRing: $('lockRing'), abyssWarn: $('abyssWarn'), reticle: $('reticle'),
       radar: $('radar'), tierRows: $('tierRows'), pieceGrid: $('pieceGrid'), fortStats: $('fortStats'),
@@ -53,6 +56,7 @@ export const UI = {
         else if (a === 'touch') handlers.touch && handlers.touch();
         else if (a === 'buyship') handlers.buyShip && handlers.buyShip(act.dataset.id);
         else if (a === 'useship') handlers.useShip && handlers.useShip(act.dataset.id);
+        else if (a === 'buyitem') handlers.buyItem && handlers.buyItem(act.dataset.id);
       }
     });
 
@@ -129,12 +133,14 @@ export const UI = {
   openTiers(game) { this.open('tiers'); this.refreshTiers(game); },
   openYard(game) { this.open('yard'); this.refreshYard(game); },
   openBuild(game) { this.open('build'); this.refreshBuild(game); },
+  openShop(game) { this.open('shop'); this.refreshShop(game); },
   openHelp() { this.open('help'); },
   toggle(name, game) {
     if (this.panel === name) this.close();
     else if (name === 'tiers') this.openTiers(game);
     else if (name === 'build') this.openBuild(game);
     else if (name === 'yard') this.openYard(game);
+    else if (name === 'shop') this.openShop(game);
     else this.openHelp();
   },
 
@@ -208,6 +214,35 @@ export const UI = {
       <span>Turrets <b>${f.turrets.length}</b></span>
       <span>Range bonus <b>+${Math.round((f.rangeMult - 1) * 100)}%</b></span>
       <span>Mining <b>${(f.yields.titanium || 0).toFixed(1)} Ti/s</b></span>`;
+  },
+
+  /** Top-bar wallet: the two currencies a player is meant to watch. */
+  refreshWallet(game) {
+    if (!game) return;
+    if (this.el.chipCredits) this.el.chipCredits.textContent = Math.floor(game.credits || 0);
+    if (this.el.chipShards) this.el.chipShards.textContent = game.shards || 0;
+  },
+
+  /** The store grid: consumables in credits, skins in shards, nothing for cash. */
+  refreshShop(game) {
+    if (!game || !this.el.shopItems) return;
+    const view = shopView(game);
+    this.el.shopCredits.textContent = view.credits;
+    this.el.shopShards.textContent = view.shards;
+    this.el.shopNote.textContent = SHOP.premiumNote;
+    this.el.shopItems.innerHTML = view.rows.map((item) => {
+      const currency = item.currency === 'shards' ? '◆' : '¢';
+      const label = item.owned ? 'EQUIPPED' : `BUY ${item.price} ${currency}`;
+      const disabled = item.owned || !item.affordable ? 'disabled' : '';
+      return `<div class="shop-item${item.owned ? ' owned' : ''}">
+        <header><span>${item.icon}</span><b>${item.name}</b>
+          <span class="price${item.currency === 'shards' ? ' shard' : ''}">${item.price} ${currency}</span>
+        </header>
+        <p>${item.blurb}</p>
+        <button data-action="buyitem" data-id="${item.id}" class="${item.owned ? 'owned' : ''}" ${disabled}>${label}</button>
+      </div>`;
+    }).join('');
+    this.refreshWallet(game);
   },
 
   refreshYard(game) {

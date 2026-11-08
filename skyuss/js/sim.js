@@ -6,6 +6,7 @@ import { Enterprise } from './enterprise.js';
 import { SkyFort } from './fort.js';
 import { WorldStream, generateWorld, nearestDerelict, nearestIsland, stormAt } from './world.js';
 import { WORLD, PIRATE_TYPES, SIEGE, SCAVENGE, FORT, CREDITS, PHOTO_CONTRACTS, SHIPYARD } from './config.js';
+import { buyItem as buyStoreItem, TRAILS } from './shop.js';
 
 // cost of a warp jump home
 const WARP = { cost: 25 };
@@ -73,6 +74,8 @@ export class SkyGame {
     this.lockHold = 0;
     // shipyard economy: credits are earned in the world, never granted
     this.credits = CREDITS.start;
+    this.shards = 0;                  // earned only — photo contracts and dreadnought kills
+    this.cosmetics = { trail: 'ion' }; // engine-glow skin, bought in the shop
     this.owned = { enterprise: true };
     this.hullId = 'enterprise';
     this.photos = {};                 // subject id -> { kind, pay, at }
@@ -753,6 +756,7 @@ export class SkyGame {
     this.stats.kills += 1;
     this.fx.kills += 1;
     this.earn(CREDITS.kill[e.type] || 30, `${e.def.name} bounty`);
+    if (e.def.boss) this.shards += 2;      // the flagship pays in shards too
     this.fxBurst('boom', e.pos.x, e.pos.y, e.pos.z, e.def.size, 1.1);
     e.fade = 0.6;
     const bounty = e.def.bounty;
@@ -869,6 +873,23 @@ export class SkyGame {
    * Everything in the world worth photographing, in world space. The renderer
    * decides which of these are actually in frame; the sim only knows what exists.
    */
+  /**
+   * Buy something from the store. Consumables spend credits, cosmetics spend
+   * shards, and nothing takes real money — see js/shop.js for why.
+   */
+  buy(id) {
+    const r = buyStoreItem(this, id);
+    if (r.ok) this.emit('good', r.message);
+    else this.emit('warn', r.message);
+    return r;
+  }
+
+  /** Engine-glow colour the renderer should paint the exhaust with. */
+  get trailColour() {
+    const t = (this.cosmetics && this.cosmetics.trail) || 'ion';
+    return (TRAILS[t] || TRAILS.ion).hex;
+  }
+
   photoSubjects() {
     const out = [];
     const w = this.world || { islands: [], derelicts: [], storms: [] };
@@ -913,6 +934,7 @@ export class SkyGame {
     }
     if (paid > 0) {
       this.credits += paid;
+      this.shards += fresh.length;          // one shard per new contract framed
       this.fx.credits = (this.fx.credits || 0) + paid;
       this.fx.photos = (this.fx.photos || 0) + fresh.length;
       this.stats.photos = (this.stats.photos || 0) + fresh.length;
@@ -974,6 +996,8 @@ export class SkyGame {
       siegeWave: this.siegeWave,
       settings: { ...this.settings },
       credits: this.credits,
+      shards: this.shards,
+      cosmetics: { ...this.cosmetics },
       owned: { ...this.owned },
       hullId: this.hullId,
       photos: { ...this.photos },
@@ -1001,6 +1025,8 @@ export class SkyGame {
     g.siegeWave = d.siegeWave || 0;
     if (d.settings) Object.assign(g.settings, d.settings);
     g.credits = Number.isFinite(d.credits) ? d.credits : g.credits;
+    g.shards = Number.isFinite(d.shards) ? d.shards : 0;
+    if (d.cosmetics) g.cosmetics = { trail: 'ion', ...d.cosmetics };
     if (d.owned) g.owned = { enterprise: true, ...d.owned };
     g.photos = { ...(d.photos || {}) };
     if (d.hullId && g.owned[d.hullId]) g.useShip(d.hullId);

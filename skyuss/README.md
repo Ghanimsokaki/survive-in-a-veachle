@@ -139,6 +139,53 @@ has its own dropped-mesh slot — see `skyuss/assets/premium/README.md`.
 dreadnought. The mesh itself is never committed: the licence belongs to whoever bought it, and
 the repo keeps only the procedural hull plus the drop slot.
 
+### Sound: a signal chain, not raw oscillators
+
+Everything is synthesised — there is not a single audio file in the repository. What changed in
+the second version is the chain around those oscillators:
+
+```
+voice → lowpass → panner ─┬→ dry bus ─┐
+                          └→ send ────┴→ reverb ─┐
+                                                  ├→ master → compressor → speakers
+engine (3 osc + air) ─────────────────────────────┘
+```
+
+- a **compressor** on the master, because a siege stacks twenty explosions and the first version
+  clipped into a fizz;
+- a **generated impulse response** reverb (1.9 s, exponential tail, built from noise at start-up)
+  so shots and explosions sit in a space instead of on the glass;
+- **every voice filtered and panned** — shots alternate left/right, debris cracks pan out;
+- **soft attacks** (3–6 ms linear ramps) on every envelope: no more click at the start of a sound;
+- a **voice cap of 28**, so 600 hostiles cannot spawn 600 nodes and stutter the frame;
+- the phaser is now a two-oscillator chirp through a resonant lowpass, the explosion is three
+  layers (sub drop, filtered body, debris), warp is a riser into a reverb tail.
+
+`setVolume(0…1)`, `chime()` and `voiceCount` are new; the eleven effects keep their old names, so
+nothing else had to change. The smoke test drives it with a fake `AudioContext`: it asserts the
+compressor and reverb exist, that all eleven effects survive being spammed, that the cap holds at
+28, and that a broken/absent context stays silent rather than throwing.
+
+### The store, and the second currency
+
+The HUD is now a **platform-style layout**: a wallet bar across the top (brand left, credits 🪙 and
+shards ◆ right, `+` opening the store), a rail of panel buttons down the right edge, and the event
+log dressed as a live chat feed in the corner. Mobile keeps the wallet at the top and moves the
+rail above the thumb.
+
+Two currencies, and only one of them can ever be bought:
+
+| Currency | Earned by | Spent on |
+| --- | --- | --- |
+| **Credits ¢** | bounties, photo contracts | hulls, consumables (hull patch 120, shield cell 90, energy cell 60) |
+| **Shards ◆** | **one per paid photo contract, two per Reaver kill** | engine-glow skins (Ember 5, Void 5, Aurora 8) |
+
+Shards are not for sale and the store says so in its own footer (`SHOP.premiumNote`). That is a
+deliberate line: a currency you earn is a reward, a currency you buy is a payment system, and a
+payment system needs an adult on the account — see `MONETISE.md`. `js/shop.js` owns the catalogue;
+`SkyGame.buy(id)` applies it; the renderer repaints the exhaust with `game.trailColour` and
+restores the stock colours when you switch back to Ion.
+
 ### The enemy capital ship — designed here, not licensed
 
 The player's big hull is meant to be a bought mesh; the *hostile* one could not be, so it is
@@ -434,7 +481,7 @@ skyuss/
   js/main.js          renderer, cloud sea, camera rig, input, scene sync, VFX
   js/audio.js         synthesised WebAudio (no assets)
   js/touch.js         thumb-stick / look-pad / action buttons for phones
-tools/skyuss-smoke.mjs   headless test: 410 assertions, no GPU required
+tools/skyuss-smoke.mjs   headless test: 452 assertions, no GPU required
 ```
 
 The split is deliberate: **`sim.js` never imports Three.js and `main.js` never owns game
@@ -456,7 +503,7 @@ Useful because jsdom has no WebGL: this is how the hull proportions get reviewed
 ## Tests
 
 ```bash
-npm run smoke:skyuss        # 410 assertions: sim + streaming + meshes, no GPU
+npm run smoke:skyuss        # 452 assertions: sim + streaming + meshes, no GPU
 npm run smoke:skyuss:boot   # 83 assertions: boots the real renderer headlessly
 npm run check               # syntax-check both games
 npm run test:all            # every suite in this repo

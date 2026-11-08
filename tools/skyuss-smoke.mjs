@@ -11,6 +11,8 @@ import { buildAurora } from '../skyuss/js/aurora.js';
 import { buildDreadnought } from '../skyuss/js/dreadnought.js';
 import { buildReaverDreadnought } from '../skyuss/js/reaver.js';
 import { SkyPortal, detectPortal } from '../skyuss/js/portal.js';
+import { SHOP, TRAILS, buyItem, shopView, trailOf } from '../skyuss/js/shop.js';
+import { SkyAudio } from '../skyuss/js/audio.js';
 import { check as deployCheck, assetRefs, importSpecs, ENTRIES } from './deploy-check.mjs';
 import { parseOBJ, objMesh, loadPremium, loadCommittedHull, HULL_MODELS, PREMIUM_CANDIDATES, PREMIUM_FILES } from '../skyuss/js/premium.js';
 import { structureOBJ, structureGLB, shapeOf, matchClasses, reportFile, knownModel, knownList, identityBlock } from '../skyuss/tools/model-report.mjs';
@@ -969,6 +971,144 @@ section('effects bus + audio module');
 }
 
 // ---------------------------------------------- aim modes, settings, touch UI
+section('audio: a real signal chain, not raw oscillators');
+{
+  // a tiny WebAudio stand-in: enough surface for the synth, and a frozen clock so
+  // scheduled voices stay 'in the future' and the voice cap is observable
+  const makeCtx = (frozen = false) => {
+    let t = 0;
+    const node = (extra = {}) => ({
+      connect() { return this; }, disconnect() {}, start() {}, stop() {},
+      setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {},
+      setTargetAtTime() {}, cancelScheduledValues() {}, ...extra,
+    });
+    const param = () => ({ value: 0, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {}, setTargetAtTime() {} });
+    const ctx = {
+      sampleRate: 48000, state: 'running', destination: node(),
+      get currentTime() { return frozen ? 0 : (t += 0.01); },
+      resume: () => Promise.resolve(),
+      createGain: () => node({ gain: param() }),
+      createOscillator: () => node({ type: 'sine', frequency: param(), detune: param() }),
+      createBiquadFilter: () => node({ type: 'lowpass', frequency: param(), Q: param() }),
+      createBufferSource: () => node({ buffer: null, playbackRate: param(), loop: false }),
+      createBuffer: (ch, len) => ({ numberOfChannels: ch, length: len, getChannelData: () => new Float32Array(len) }),
+      createDynamicsCompressor: () => node({ threshold: param(), knee: param(), ratio: param(), attack: param(), release: param() }),
+      createConvolver: () => node({ buffer: null }),
+      createStereoPanner: () => node({ pan: param() }),
+    };
+    return ctx;
+  };
+
+  // silent without a context — this is what a headless run and a muted player see
+  const quiet = new SkyAudio();
+  quiet.phaser(); quiet.explosion(2); quiet.warp(); quiet.engine(1, 1, true); quiet.silenceEngine();
+  assert(quiet.ready === false && quiet.voiceCount === 0, 'every effect is a no-op before init');
+
+  const prevWindow = globalThis.window;
+  globalThis.window = { AudioContext: function () { return makeCtx(false); } };
+  const a = new SkyAudio();
+  a.init();
+  assert(!!a.ctx && !!a.sfx, 'init builds a context and a dry bus');
+  assert(!!a.comp, 'the master goes through a compressor, so stacked explosions do not clip');
+  assert(!!a.reverb && !!a.send && !!a.wet, 'and through a generated reverb — no audio files loaded');
+  assert(!!a.engineNodes && !!a.engineNodes.bus, 'the engine bed is three oscillators plus an air layer');
+  assert(a.ready === true, 'the module reports itself ready after init');
+
+  const names = ['phaser', 'torpedo', 'explosion', 'hit', 'warp', 'pickup', 'build', 'upgrade', 'alarm', 'ui', 'chime'];
+  let threw = null;
+  try {
+    for (let i = 0; i < 12; i += 1) for (const n of names) a[n](n === 'explosion' ? 1.6 : undefined);
+    a.engine(0.7, 0.5, true); a.silenceEngine();
+  } catch (e) { threw = e.message; }
+  assert(!threw, 'all eleven effects survive being spammed' + (threw ? ` (${threw})` : ''));
+
+  // the cap: a frozen clock keeps every voice pending, so the limiter is visible
+  globalThis.window = { AudioContext: function () { return makeCtx(true); } };
+  const b = new SkyAudio();
+  b.init();
+  let peak = 0;
+  for (let i = 0; i < 30; i += 1) for (const n of names) { b[n](); peak = Math.max(peak, b.voiceCount); }
+  assert(peak <= 28, `a siege cannot spawn unbounded voices (peak ${peak}, cap 28)`);
+  assert(peak > 10, 'but ordinary play is not starved of voices');
+
+  assert(a.setVolume(5) === 1 && a.setVolume(-1) === 0, 'volume clamps to 0…1');
+  assert(a.setVolume(0.4) === 0.4 && a.volume === 0.4, 'and is readable back');
+  assert(a.toggle() === false && a.enabled === false, 'mute is a state, not just a gain');
+  assert(a.toggle() === true, 'and unmuting restores it');
+  assert(typeof a.chime === 'function', 'the store has a sting of its own');
+  globalThis.window = prevWindow;
+}
+
+section('the store: two currencies, one of them never for sale');
+{
+  assert(SHOP.items.length >= 6, 'the catalogue has consumables and skins');
+  assert(SHOP.items.filter((i) => i.currency === 'shards').every((i) => i.kind === 'cosmetic'), 'shards only buy cosmetics');
+  assert(SHOP.items.filter((i) => i.currency === 'credits').every((i) => i.kind === 'consumable'), 'credits only buy consumables');
+  assert(/earned, never sold/i.test(SHOP.premiumNote), 'the store says out loud that shards are not sold');
+  assert(!SHOP.items.some((i) => /(\bRp|\bUSD\b|\$|paypal|stripe)/i.test(JSON.stringify(i))), 'no item carries a real-money price');
+
+  const g = new SkyGame({ seed: 91 });
+  assert(g.shards === 0 && g.cosmetics.trail === 'ion', 'a new game starts with no shards and the stock trail');
+  assert(g.trailColour === TRAILS.ion.hex, 'and paints the stock ion colour');
+
+  // consumables
+  g.credits = 999;
+  g.hull = 10;
+  const before = g.credits;
+  const repair = g.buy('repair');
+  assert(repair.ok && g.hull > 10, 'a hull patch actually repairs');
+  assert(g.credits === before - 120, 'and takes its 120 credits');
+  g.hull = g.ship.stats.hull;
+  const wasted = g.buy('repair');
+  assert(!wasted.ok && /already intact/i.test(wasted.message), 'a patch at full hull is refused rather than wasted');
+
+  g.energy = 0;
+  assert(g.buy('energy').ok && g.energy === g.ship.stats.energy, 'an energy cell refills the capacitor');
+  g.shields = 0;
+  const shieldBuy = g.buy('shield');
+  assert(
+    g.ship.stats.maxShields > 0 ? (shieldBuy.ok && g.shields === g.ship.stats.maxShields) : (!shieldBuy.ok && /emitters/i.test(shieldBuy.message)),
+    'a shield cell fills installed shields, and is refused when there are none',
+  );
+
+  const poor = new SkyGame({ seed: 92 });
+  poor.credits = 5;
+  const denied = poor.buy('repair');
+  assert(!denied.ok && /Needs 120/.test(denied.message), 'an unaffordable item explains the price');
+
+  // shards are earned
+  const earner = new SkyGame({ seed: 93 });
+  const subject = earner.photoSubjects().find((s) => s.kind === 'island' || s.kind === 'derelict');
+  const claim = earner.claimPhoto([subject.id]);
+  assert(claim.paid > 0 && earner.shards === 1, 'framing a new photo contract pays a shard');
+  const boss = earner.spawnEnemy('behemoth', { x: 0, y: 0, z: 0 });
+  const shardsBefore = earner.shards;
+  earner.killEnemy(boss);
+  assert(earner.shards === shardsBefore + 2, 'killing a Reaver pays two');
+
+  // skins
+  const buyer = new SkyGame({ seed: 94 });
+  buyer.shards = 12;
+  const skin = buyer.buy('trail_void');
+  assert(skin.ok && buyer.cosmetics.trail === 'void', 'a skin installs the trail');
+  assert(buyer.trailColour === TRAILS.void.hex, 'and the renderer gets that colour');
+  assert(buyer.shards === 7, 'for its shard price');
+  assert(buyer.buy('trail_void').ok === false && /already installed/.test(buyer.buy('trail_void').message), 'buying it twice is refused');
+  const broke = new SkyGame({ seed: 95 });
+  assert(broke.buy('trail_aurora').ok === false, 'no shards, no skin');
+
+  // the view the panel draws
+  const view = shopView(buyer);
+  assert(view.rows.length === SHOP.items.length && view.shards === 7, 'the panel sees the catalogue and the wallet');
+  assert(view.rows.find((r) => r.id === 'trail_void').owned, 'and marks what is equipped');
+  assert(trailOf('trail_ember') === 'ember', 'cosmetic ids map to trail names');
+
+  // persistence
+  const round = SkyGame.fromJSON(JSON.parse(JSON.stringify(buyer.toJSON())));
+  assert(round.shards === 7 && round.cosmetics.trail === 'void', 'shards and skins survive a save');
+  assert(SkyGame.fromJSON(JSON.parse(JSON.stringify(new SkyGame({ seed: 96 }).toJSON()))).shards === 0, 'and an old save without them still loads');
+}
+
 section('portal money hooks (inert without an SDK)');
 {
   assert(detectPortal(undefined) === null, 'no window means no portal, not a crash');

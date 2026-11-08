@@ -427,6 +427,58 @@ key('Escape'); await frames();
   await frames();
 }
 
+// the store: Roblox-style wallet, earned shards, cosmetics
+{
+  const live = () => window.__skyuss.game;
+  assert(!!document.getElementById('topBar'), 'the wallet bar exists above the HUD');
+  assert(!!document.getElementById('sideRail'), 'the panel rail exists down the right edge');
+  assert(document.getElementById('chipCredits').textContent.trim() === String(Math.floor(live().credits)),
+    'the wallet chip shows the credit balance');
+
+  key('KeyM');
+  await frames();
+  const shop = document.getElementById('panelShop');
+  assert(shop && !shop.classList.contains('hidden'), 'M opens the store');
+  const cards = () => [...document.querySelectorAll('#shopItems .shop-item')];
+  assert(cards().length >= 6, 'the store lists every item');
+  assert(cards().some((c) => /Seed|Hull Patch/.test(c.textContent)), 'consumables are on the shelf');
+
+  const buy = (id) => {
+    const btn = [...document.querySelectorAll('#shopItems button')].find((b) => b.dataset.id === id);
+    assert(!!btn, 'item ' + id + ' has a buy button');
+    btn.dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true }));
+  };
+
+  // a cosmetic with no shards must stay locked (earlier sections may have earned some)
+  const skinBtn = () => [...document.querySelectorAll('#shopItems button')].find((b) => b.dataset.id === 'trail_ember');
+  live().shards = 0;
+  window.__skyuss.refreshShop();
+  await frames();
+  assert(skinBtn().disabled, 'a skin is locked with no shards');
+  assert(document.getElementById('chipShards').textContent.trim() === '0', 'the wallet chip reads zero');
+  live().shards = 9;
+  live().credits = 2000;
+  live().hull = 5;
+  window.__skyuss.refreshShop();
+  await frames();
+  assert(!skinBtn().disabled, 'earned shards unlock it');
+  assert(document.getElementById('chipShards').textContent.trim() === '9', 'and the wallet chip agrees');
+
+  buy('trail_ember');
+  await frames();
+  assert(live().cosmetics.trail === 'ember', 'buying a skin equips it');
+  assert(live().shards === 4, 'and spends shards, not credits');
+  assert(skinBtn().textContent.includes('EQUIPPED'), 'the card switches to EQUIPPED');
+
+  buy('repair');
+  await frames();
+  assert(live().hull > 5, 'a hull patch repairs the ship from the store');
+  assert(live().credits < 2000, 'and costs credits');
+  key('Escape');
+  await frames();
+  assert(shop.classList.contains('hidden'), 'Escape closes the store');
+}
+
 // the shipyard panel: earn, buy, fly
 {
   const live = () => window.__skyuss.game;

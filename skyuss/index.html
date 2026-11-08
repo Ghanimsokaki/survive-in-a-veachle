@@ -27,6 +27,28 @@
   </div>
 
   <!-- bottom left: ship systems -->
+  <!-- ===== chrome: brand left, wallet right, panel rail down the side ===== -->
+  <div class="topbar" id="topBar">
+    <div class="brand"><span class="brand-dot"></span><b>SKYUSS</b><i>cloud-sea expedition</i></div>
+    <div class="wallet">
+      <button class="chip-currency" data-act="yard" title="Credits — bounties and photo contracts">
+        <span>🪙</span><b id="chipCredits">250</b>
+      </button>
+      <button class="chip-currency shard" data-act="shop" title="Shards — earned from photo contracts and dreadnought kills">
+        <span>◆</span><b id="chipShards">0</b>
+      </button>
+      <button class="chip-plus" data-act="shop" title="Store (M)">+</button>
+    </div>
+  </div>
+
+  <div class="side-rail" id="sideRail">
+    <button data-act="shop" title="Store (M)"><span>🛒</span><i>Store</i></button>
+    <button data-act="yard" title="Shipyard (Y)"><span>🛠</span><i>Yard</i></button>
+    <button data-act="tiers" title="Refit (U)"><span>🛸</span><i>Refit</i></button>
+    <button data-act="build" title="Fortress (B)"><span>🏗</span><i>Fort</i></button>
+    <button data-act="help" title="Help (H)"><span>❔</span><i>Help</i></button>
+  </div>
+
   <div class="hud-bl">
     <div class="bar">
       <span class="bar-label">HULL</span>
@@ -139,6 +161,17 @@
     <p class="panel-note"><b>G</b> free camera · <b>T</b> shoot &amp; sell the frame · <b>Y</b> closes. Buys are permanent and saved.</p>
   </div>
 
+  <div class="panel" id="panelShop">
+    <header>
+      <h2>🛒 &nbsp;STORE</h2>
+      <button class="panel-close" data-action="close">✕</button>
+    </header>
+    <p class="panel-sub">Consumables cost <b>credits ¢</b>, earned by flying. Skins cost <b>shards ◆</b>, which drop only from paid photo contracts and dreadnought kills.</p>
+    <div class="shop-wallet">Wallet &nbsp;<b id="shopCredits">0</b> ¢ &nbsp;·&nbsp; <b id="shopShards">0</b> ◆</div>
+    <div class="shop-grid" id="shopItems"></div>
+    <p class="panel-note" id="shopNote"></p>
+  </div>
+
   <div class="panel" id="panelHelp">
     <header>
       <h2>❔ &nbsp;FLIGHT MANUAL</h2>
@@ -170,7 +203,7 @@
         <ul>
           <li><b>E</b> strip a derelict / survey an island / deposit at the fort</li>
           <li><b>G</b> free camera + <b>T</b> shoots the frame: new subjects pay a photo contract</li>
-          <li><b>Y</b> shipyard: buy the Aurora-class courier with credits</li>
+          <li><b>Y</b> shipyard: buy the Aurora-class courier with credits · <b>M</b> store</li>
           <li><b>B</b> fortress build mode · <b>U</b> Enterprise refit</li>
           <li>Below the cloud line the <b>abyss</b> tears the hull apart</li>
           <li>Sieges hit the fortress every ~3 minutes</li>
@@ -197,6 +230,7 @@
       <li><kbd>G</kbd> free camera · <kbd>T</kbd> photo · <kbd>Y</kbd> shipyard</li>
     </ul>
     <a class="back" href="../index.html">← back to Home on Wheels</a>
+    <a id="supportLink" class="support-link" hidden>♥ Support</a>
   </div>
 </div>
 
@@ -205,6 +239,7 @@
   <p>SKYUSS needs a WebGL2-capable browser. Try Chrome, Edge, Firefox or Safari with hardware acceleration on.</p>
 </div>
 
+<script type="module" src="../support-link.js"></script>
 <script type="module" src="js/main.js"></script>
 </body>
 </html>

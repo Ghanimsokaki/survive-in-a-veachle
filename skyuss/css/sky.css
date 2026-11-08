@@ -399,3 +399,222 @@ body.freecam #hud .reticle { opacity: 0.25; }
 }
 .yard-contracts .row b { color: #ffe6a8; }
 .yard-contracts .row .done { color: #8affc4; }
+
+/* tip jar: hidden until support-config.js holds a URL */
+.support-link {
+  display: block;
+  margin-top: 14px;
+  padding: 9px 14px;
+  text-align: center;
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  color: #ffe0a8;
+  text-decoration: none;
+  border: 1px solid rgba(255, 224, 168, 0.32);
+  border-radius: 999px;
+  background: rgba(255, 224, 168, 0.06);
+}
+.support-link:hover { background: rgba(255, 224, 168, 0.15); }
+.support-link[hidden] { display: none; }
+
+/* ==========================================================================
+   Roblox-style chrome: a wallet bar across the top, a rail of panels down the
+   right edge, and the event log dressed as a chat feed in the corner. It reads
+   like a platform game page rather than a flight sim overlay, and on a phone the
+   wallet stays at the top where a thumb can reach the store.
+   ========================================================================== */
+
+.topbar {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  gap: 12px;
+  background: linear-gradient(180deg, rgba(8, 14, 26, 0.92), rgba(8, 14, 26, 0.55) 70%, transparent);
+  pointer-events: none;
+  z-index: 40;
+}
+
+.topbar .brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+  color: #e8f4ff;
+  letter-spacing: 0.04em;
+}
+.topbar .brand b { font-size: 15px; font-weight: 800; }
+.topbar .brand i {
+  font-style: normal;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: #7fa6c8;
+}
+.topbar .brand-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: #64ff9d;
+  box-shadow: 0 0 10px #64ff9d;
+  animation: pulseDot 2.4s ease-in-out infinite;
+}
+@keyframes pulseDot { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+.topbar .wallet { display: flex; align-items: center; gap: 8px; pointer-events: auto; }
+
+.chip-currency {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid rgba(120, 200, 255, 0.28);
+  background: rgba(10, 22, 38, 0.82);
+  color: #d8ecff;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+.chip-currency:hover { background: rgba(22, 44, 70, 0.9); transform: translateY(-1px); }
+.chip-currency b { font-variant-numeric: tabular-nums; }
+.chip-currency.shard { border-color: rgba(180, 140, 255, 0.45); color: #e6d8ff; }
+.chip-currency.shard span { color: #b58cff; }
+
+.chip-plus {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(160deg, #39d98a, #1f9e67);
+  color: #04220f;
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+.chip-plus:hover { filter: brightness(1.1); }
+
+/* right-hand panel rail */
+.side-rail {
+  position: fixed;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 38;
+}
+.side-rail button {
+  width: 54px;
+  padding: 7px 4px 6px;
+  border-radius: 14px;
+  border: 1px solid rgba(120, 200, 255, 0.18);
+  background: rgba(10, 22, 38, 0.72);
+  color: #cfe6ff;
+  font: inherit;
+  cursor: pointer;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+.side-rail button span { font-size: 19px; line-height: 1.1; }
+.side-rail button i {
+  font-style: normal;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #86a8c6;
+}
+.side-rail button:hover {
+  transform: translateX(-2px);
+  background: rgba(24, 46, 72, 0.9);
+  border-color: rgba(120, 200, 255, 0.45);
+}
+
+/* the event log, dressed as a chat feed */
+.toasts { left: 14px !important; bottom: 132px !important; }
+.toasts::before {
+  content: 'LIVE';
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: #5f86a8;
+  margin-bottom: 6px;
+}
+.toasts .toast {
+  border-radius: 12px 12px 12px 4px;
+  background: rgba(8, 18, 32, 0.78);
+  border-left: 2px solid rgba(120, 200, 255, 0.4);
+  backdrop-filter: blur(4px);
+}
+
+/* ------------------------------- store panel ------------------------------ */
+.shop-wallet {
+  margin: 4px 0 12px;
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: rgba(12, 26, 44, 0.75);
+  border: 1px solid rgba(120, 200, 255, 0.18);
+  font-size: 13px;
+  color: #bcd8f2;
+}
+.shop-wallet b { color: #eaf6ff; font-variant-numeric: tabular-nums; }
+
+.shop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+  gap: 9px;
+}
+.shop-item {
+  display: grid;
+  gap: 6px;
+  padding: 11px 12px;
+  border-radius: 14px;
+  background: rgba(10, 22, 38, 0.62);
+  border: 1px solid rgba(120, 200, 255, 0.16);
+}
+.shop-item.owned { border-color: rgba(100, 255, 157, 0.45); }
+.shop-item header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #eaf6ff;
+}
+.shop-item header .price {
+  margin-left: auto;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(120, 200, 255, 0.12);
+  color: #cfe6ff;
+}
+.shop-item header .price.shard { background: rgba(180, 140, 255, 0.16); color: #e6d8ff; }
+.shop-item p { margin: 0; font-size: 11.5px; line-height: 1.45; color: #93aec7; }
+.shop-item button {
+  padding: 7px 10px;
+  border-radius: 9px;
+  border: 1px solid rgba(100, 255, 157, 0.4);
+  background: rgba(100, 255, 157, 0.1);
+  color: #b8ffd8;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.shop-item button:disabled { opacity: 0.4; cursor: not-allowed; }
+.shop-item button.owned { border-color: rgba(120, 200, 255, 0.3); background: none; color: #8fb6d6; }
+
+@media (max-width: 720px) {
+  .topbar { height: 46px; padding: 0 9px; }
+  .topbar .brand i { display: none; }
+  .chip-currency { padding: 6px 10px; font-size: 12px; }
+  .side-rail { top: auto; bottom: 92px; right: 8px; transform: none; }
+  .side-rail button { width: 46px; }
+  .side-rail button i { display: none; }
+  .toasts { bottom: 200px !important; }
+}
