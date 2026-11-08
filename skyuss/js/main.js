@@ -5,7 +5,8 @@ import * as THREE from '../vendor/three.module.js';
 import { SkyGame } from './sim.js';
 import { buildEnterprise } from './enterprise.js';
 import { buildAurora } from './aurora.js';
-import { loadPremium, loadCommittedHull } from './premium.js';
+import { buildDreadnought } from './dreadnought.js';
+import { loadPremium, loadCommittedHull, HULL_MODELS } from './premium.js';
 import { PHOTO_CONTRACTS } from './config.js';
 import { buildFort, buildFortGrid } from './fort.js';
 import { buildIsland, buildDerelict, buildStorm, buildHomeBeacon } from './world.js';
@@ -387,14 +388,19 @@ function disposeGroup(obj) {
 }
 
 // ------------------------------------------------------------------ the ship
+const HULL_BUILDERS = {
+  aurora: buildAurora,
+  kang: buildDreadnought,
+};
+
 function rebuildShipMesh() {
   if (shipMesh) disposeGroup(shipMesh);
   premiumTried = false;
-  const aurora = game.hullId === 'aurora';
-  shipMesh = aurora ? buildAurora(THREE, game.ship) : buildEnterprise(THREE, game.ship);
+  const builder = HULL_BUILDERS[game.hullId];
+  shipMesh = builder ? builder(THREE, game.ship) : buildEnterprise(THREE, game.ship);
   scene.add(shipMesh);
   shipSig = JSON.stringify(game.ship.toJSON ? game.ship.toJSON() : game.ship.tiers);
-  if (aurora) adoptPremiumHull();
+  if (builder) adoptPremiumHull(game.hullId);
 }
 
 /**
@@ -402,15 +408,19 @@ function rebuildShipMesh() {
  * skyuss/assets/premium/, fly the real mesh instead of the placeholder.
  */
 let premiumTried = false;
-function adoptPremiumHull() {
+function adoptPremiumHull(hullId = 'aurora') {
   if (premiumTried || !shipMesh || !shipMesh.userData.setPremium) return;
   premiumTried = true;
+  const model = HULL_MODELS[hullId];
+  const targetLength = (model && model.length) || 30;
   // 1. a hull the player bought and dropped into assets/premium/ wins
-  loadPremium(THREE).then((found) => {
+  loadPremium(THREE, { hull: hullId }).then((found) => {
     if (!found) {
-      // 2. otherwise fly the committed CC0 courier (Quaternius Dispatcher)
-      return loadCommittedHull(THREE, 'aurora', {
-        length: 30,
+      // 2. otherwise the committed CC0 courier (Quaternius Dispatcher), if this
+      //    hull has one — the Kang flies its procedural mesh until a drop appears
+      if (!model || !model.url) return null;
+      return loadCommittedHull(THREE, hullId, {
+        length: targetLength,
         texLoader: (url) => {
           const tex = new THREE.TextureLoader().load(url, undefined, undefined, () => {});
           tex.colorSpace = THREE.SRGBColorSpace;
@@ -421,14 +431,14 @@ function adoptPremiumHull() {
         },
       }).then((hull) => {
         if (!hull) return null;
-        shipMesh.userData.setPremium(hull.mesh, { length: 30 });
+        shipMesh.userData.setPremium(hull.mesh, { length: targetLength });
         UI.toast('🛠️ ' + hull.credit, 'good');
         console.info('[skyuss] courier hull', hull.source, hull.triangles, 'triangles');
         return hull;
       });
     }
     if (!shipMesh || !shipMesh.userData.setPremium) return null;
-    shipMesh.userData.setPremium(found.mesh, { length: 30 });
+    shipMesh.userData.setPremium(found.mesh, { length: targetLength });
     UI.toast('🛠️ Bought hull loaded: ' + found.source, 'good');
     console.info('[skyuss] premium hull', found.source, found.triangles, 'triangles');
     return found;

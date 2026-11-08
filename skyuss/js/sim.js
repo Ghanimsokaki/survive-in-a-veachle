@@ -874,8 +874,9 @@ export class SkyGame {
       if (e.hp <= 0) continue;
       out.push({ id: `p:${e.id}`, kind: 'pirate', label: e.def.name, x: e.pos.x, y: e.pos.y, z: e.pos.z, r: 8 + e.def.size * 6 });
     }
-    if (this.hullId === 'aurora') {
-      out.push({ id: 'aurora', kind: 'aurora', label: 'the Aurora', x: this.pos.x, y: this.pos.y, z: this.pos.z, r: 16 });
+    if (this.hullId !== 'enterprise') {
+      const label = this.hullId === 'kang' ? 'the Kang dreadnought' : 'the Aurora';
+      out.push({ id: this.hullId, kind: this.hullId, label, x: this.pos.x, y: this.pos.y, z: this.pos.z, r: this.hullId === 'kang' ? 30 : 16 });
     }
     for (const s of out) s.pay = (PHOTO_CONTRACTS[s.kind] || {}).pay || 0;
     return out;

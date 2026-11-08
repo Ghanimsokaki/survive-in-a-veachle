@@ -119,10 +119,19 @@ through the camera (`framedSubjects()` in `js/main.js`); the sim pays out throug
 `claimPhoto(ids)` and remembers the shot in the save file. That split keeps the whole economy
 testable headlessly.
 
-**The shipyard (`Y`)** lists the hulls you own and the ones you can afford. The
-**Aurora-class courier** costs 4,500 ¢: 28% faster, 22% nimbler, 15% faster guns, 18% thinner
-hull. Refits stack on top of it — the hull class multiplies the airframe, the refit tree is
-unchanged.
+**The shipyard (`Y`)** lists the hulls you own and the ones you can afford. Refits stack on
+top of a bought hull — the hull class multiplies the airframe, the refit tree is unchanged.
+
+| Hull | Price | Airframe |
+| --- | --- | --- |
+| Constitution-class | — | the saucer you start in |
+| **Aurora-class courier** | 4,500 ¢ | speed ×1.28 · turn ×1.22 · fire rate ×1.15 · hull ×0.82 · real CC0 mesh |
+| **Kang-class dreadnought** | 9,000 ¢ | speed ×0.72 · turn ×0.70 · hull ×2.20 · three nacelles, heavy banks |
+
+![the Kang-class dreadnought](docs/kang-class.png)
+
+Both are photo subjects in their own right (400 ¢ and 600 ¢ once each), and the dreadnought
+has its own dropped-mesh slot — see `skyuss/assets/premium/README.md`.
 
 ### The Aurora model — a real downloaded mesh, CC0
 
@@ -152,6 +161,27 @@ but not redistribution of the file, so that route stays a local drop-in:
 
 `npm run preview:hull` re-renders the preview above straight from the shipped OBJ (the offline
 rasteriser has no texture sampling, so the tool bakes the palette into vertex colours first).
+
+### Bringing in a hull you own
+
+`js/premium.js` has one slot per shipyard hull:
+
+| Hull | Expected file in `skyuss/assets/premium/` | Fitted length |
+| --- | --- | --- |
+| Aurora-class | `avrora.obj` / `aurora.obj` | 30 m |
+| Kang-class | `kang.obj` / `kang_dreadnought.obj` | 62 m |
+
+Only **OBJ** is supported — the reader here is dependency-free on purpose, and `.blend`,
+`.fbx` and `.glb` would each need a converter the game does not ship. Export the OBJ from
+Blender, then either drop it in by hand or run the importer:
+
+```bash
+node skyuss/tools/import-hull.mjs --in ~/Downloads/ship.obj --hull kang
+```
+
+It validates the mesh (triangles, UVs, bounding box, longest axis), copies it into the
+git-ignored folder under the right name and prints what the game will do with it. A mesh
+whose nose points −Z needs `rotY: Math.PI` at the `setPremium()` call in `js/main.js`.
 
 ## The sky fortress
 

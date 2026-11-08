@@ -17,11 +17,13 @@
 // Node (the OBJ reader is pure string → typed array).
 
 export const PREMIUM_DIR = 'assets/premium/';
-export const PREMIUM_CANDIDATES = [
-  'assets/premium/avrora.obj',
-  'assets/premium/avrora.obj.txt',
-  'assets/premium/aurora.obj',
-];
+// Where a bought hull for each shipyard entry is expected. OBJ only: this reader
+// is dependency-free, and Blender/FBX would need a converter the game does not ship.
+export const PREMIUM_FILES = {
+  aurora: ['assets/premium/avrora.obj', 'assets/premium/aurora.obj', 'assets/premium/dispatcher_bought.obj'],
+  kang: ['assets/premium/kang.obj', 'assets/premium/kang_dreadnought.obj', 'assets/premium/dreadnought.obj'],
+};
+export const PREMIUM_CANDIDATES = PREMIUM_FILES.aurora;
 
 /** Committed, licence-clean hulls. */
 export const HULL_MODELS = {
@@ -33,6 +35,17 @@ export const HULL_MODELS = {
     length: 30,
     credit: 'Dispatcher — Quaternius Ultimate Spaceships Pack (CC0 1.0)',
     source: 'https://quaternius.com/packs/ultimatespaceships.html',
+  },
+  // The Kang flies a procedural hull until a mesh is dropped into the slot; there
+  // is no committed model for it (see skyuss/assets/premium/README.md).
+  kang: {
+    id: 'kang',
+    name: 'Kang-class dreadnought',
+    url: null,
+    texture: null,
+    length: 62,
+    credit: 'Kang-class dreadnought — dropped-in hull',
+    source: null,
   },
 };
 
@@ -141,9 +154,10 @@ async function readText(fetchImpl, url) {
  * reference maps this reader does not resolve, so it is lit as a plain hull.
  */
 export async function loadPremium(THREE, opts = {}) {
+  // opts.hull picks the expected filenames (aurora | kang); opts.urls overrides
   const fetchImpl = opts.fetch || (typeof fetch === 'function' ? fetch : null);
   if (!fetchImpl) return null;
-  for (const url of opts.urls || PREMIUM_CANDIDATES) {
+  for (const url of opts.urls || PREMIUM_FILES[opts.hull] || PREMIUM_CANDIDATES) {
     try {
       const text = await readText(fetchImpl, url);
       if (!text) continue;

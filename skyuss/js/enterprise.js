@@ -116,6 +116,11 @@ export class Enterprise {
       this.stats.turnRate *= 1.22;
       this.stats.fireRate *= 1.15;
       this.stats.hull = Math.round(this.stats.hull * 0.82);
+    } else if (this.hullClass === 'kang') {
+      this.stats.maxSpeed *= 0.72;
+      this.stats.turnRate *= 0.7;
+      this.stats.fireRate *= 0.9;
+      this.stats.hull = Math.round(this.stats.hull * 2.2);
     }
     return this.stats;
   }

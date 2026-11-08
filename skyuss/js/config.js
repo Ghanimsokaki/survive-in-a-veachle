@@ -188,6 +188,7 @@ export const PHOTO_CONTRACTS = {
   fortress: { label: 'Your own fortress', pay: 120, range: 700 },
   pirate:   { label: 'Hostile in flight', pay: 140, range: 600 },
   aurora:   { label: 'The Aurora',        pay: 400, range: 700 },
+  kang:     { label: 'The Kang dreadnought', pay: 600, range: 900 },
 };
 
 /** What the yard sells. The Aurora is the TurboSquid "Avrora" hull. */
@@ -206,6 +207,13 @@ export const SHIPYARD = {
       price: 4500,
       blurb: 'Sleek long-range courier. Fragile, quick, and worth photographing.',
       stats: { speed: '×1.28', hull: '×0.82', turn: '×1.22' },
+    },
+    {
+      id: 'kang',
+      name: 'Kang-class dreadnought',
+      price: 9000,
+      blurb: 'A battleship: twice the hull, three nacelles, none of the subtlety.',
+      stats: { speed: '×0.72', hull: '×2.20', turn: '×0.70' },
     },
   ],
 };

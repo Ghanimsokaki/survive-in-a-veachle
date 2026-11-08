@@ -460,6 +460,9 @@ key('Escape'); await frames();
   assert(window.__skyuss.shipHull === 'model', 'the bought hull swaps in the real 3D model (Quaternius, CC0)');
   assert(balance() === String(live().credits), 'the panel re-reads the balance after a purchase');
 
+  assert(buttons().some((b) => b.dataset.id === 'kang'), 'the dreadnought is on the shelf too');
+  assert(live().credits < 9000, 'and still out of reach after buying the courier');
+
   const board = document.getElementById('yardContracts');
   assert(board.innerHTML.includes('Photo contracts') || board.textContent.length > 20, 'the photo contract board renders');
   key('Escape');

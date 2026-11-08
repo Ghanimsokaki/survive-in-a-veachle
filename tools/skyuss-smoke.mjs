@@ -8,7 +8,8 @@ import { SkyGame } from '../skyuss/js/sim.js';
 import { generateWorld, generateCell, WorldStream, buildIsland, buildDerelict, buildStorm, buildHomeBeacon } from '../skyuss/js/world.js';
 import { FORT, FORT_PIECES, SHIP_UPGRADES, WORLD, CREDITS, PHOTO_CONTRACTS, SHIPYARD } from '../skyuss/js/config.js';
 import { buildAurora } from '../skyuss/js/aurora.js';
-import { parseOBJ, objMesh, loadPremium, loadCommittedHull, HULL_MODELS, PREMIUM_CANDIDATES } from '../skyuss/js/premium.js';
+import { buildDreadnought } from '../skyuss/js/dreadnought.js';
+import { parseOBJ, objMesh, loadPremium, loadCommittedHull, HULL_MODELS, PREMIUM_CANDIDATES, PREMIUM_FILES } from '../skyuss/js/premium.js';
 
 const errors = [];
 const assert = (cond, msg) => {
@@ -706,6 +707,43 @@ section('the Aurora mesh and the bought-hull loader');
     const none = await loadPremium(THREE, { fetch: async () => ({ ok: false, text: async () => '' }) });
     assert(none === null, 'with no bought file the loader reports nothing instead of throwing');
   }
+}
+
+section('the Kang-class dreadnought');
+{
+  const kang = SHIPYARD.ships.find((s) => s.id === 'kang');
+  assert(!!kang && kang.price === 9000, 'the shipyard lists the Kang-class dreadnought at 9,000 credits');
+  assert(!!PHOTO_CONTRACTS.kang && PHOTO_CONTRACTS.kang.pay === 600, 'photographing it is its own contract');
+  assert(!!PREMIUM_FILES.kang && PREMIUM_FILES.kang[0].endsWith('.obj'), 'it has its own bought-hull drop slot');
+
+  const g = new SkyGame({ seed: 61 });
+  g.credits = 9999;
+  const baseSpeed = g.ship.stats.maxSpeed;
+  const baseHull = g.ship.stats.hull;
+  assert(g.buyShip('kang').ok, '9,000 credits buy the dreadnought');
+  assert(g.useShip('kang').ok && g.hullId === 'kang', 'and it becomes the active hull');
+  assert(Math.abs(g.ship.stats.maxSpeed - baseSpeed * 0.72) < 0.01, 'it is 28% slower');
+  assert(g.ship.stats.hull === Math.round(baseHull * 2.2), 'with 2.2x the hull');
+  const mine = g.photoSubjects().find((s) => s.kind === 'kang');
+  assert(!!mine && mine.pay === 600, 'your own dreadnought is a 600 credit photo subject');
+  const round = SkyGame.fromJSON(JSON.parse(JSON.stringify(g.toJSON())));
+  assert(round.hullId === 'kang' && round.owned.kang, 'the dreadnought survives a save');
+
+  const mesh = buildDreadnought(THREE, new Enterprise({ saucer: 3, nacelles: 3, deflector: 3, weapons: 3 }, { hullClass: 'kang' }));
+  let count = 0;
+  mesh.traverse((o) => { if (o.isMesh) count++; });
+  const parts = mesh.userData.parts;
+  assert(mesh.name === 'dreadnought' && count >= 30, `the dreadnought is modelled (${count} meshes)`);
+  assert(parts.nacelles.length === 3 && parts.exhaust.length === 3, 'three nacelles with their own exhaust');
+  assert(parts.grilles.length === 3 && parts.impulse.length === 2, 'grilles on every nacelle, twin impulse ports');
+  assert(parts.banks.length >= 6, 'heavy banks and turrets');
+  assert(!!parts.shieldBubble && !parts.shieldBubble.visible, 'a shield bubble waits for shields');
+  assert(mesh.userData.hull === 'kang', 'the mesh reports its hull class');
+
+  const cube = 'v -1 -1 -1\nv 1 -1 -1\nv 1 1 -1\nv -1 -1 1\nv 1 -1 1\nv 1 1 1\nf 1 2 3\nf 4 5 6\n';
+  const swapped = mesh.userData.setPremium(objMesh(THREE, parseOBJ(cube)), { length: 62 });
+  assert(swapped === true && mesh.userData.premium === true, 'a dropped-in dreadnought mesh replaces the placeholder');
+  assert(parts.exhaust.every((e) => e.visible), 'the three exhausts keep burning on the dropped mesh');
 }
 
 section('effects bus + audio module');
