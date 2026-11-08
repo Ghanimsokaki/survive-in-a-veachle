@@ -10,7 +10,7 @@ import { FORT, FORT_PIECES, SHIP_UPGRADES, WORLD, CREDITS, PHOTO_CONTRACTS, SHIP
 import { buildAurora } from '../skyuss/js/aurora.js';
 import { buildDreadnought } from '../skyuss/js/dreadnought.js';
 import { parseOBJ, objMesh, loadPremium, loadCommittedHull, HULL_MODELS, PREMIUM_CANDIDATES, PREMIUM_FILES } from '../skyuss/js/premium.js';
-import { structureOBJ, structureGLB, shapeOf, matchClasses, reportFile } from '../skyuss/tools/model-report.mjs';
+import { structureOBJ, structureGLB, shapeOf, matchClasses, reportFile, knownModel, knownList, identityBlock } from '../skyuss/tools/model-report.mjs';
 
 const errors = [];
 const assert = (cond, msg) => {
@@ -801,6 +801,24 @@ section('reading a model from the inside (identification)');
   assert(g.counts.triangles === 300 && g.counts.objects === 1, 'triangle counts come from the accessors');
   assert(g.nodeNames.includes('Enterprise_D') && g.materials.includes('Hull_Grey'), 'node and material names are listed');
   assert(Math.abs(g.size[2] - 100) < 0.01, 'the accessor min/max gives the model size');
+
+  // a file whose name is known even though the geometry cannot be read here
+  const lib = knownList();
+  assert(lib.length >= 6, 'the known-file library is populated');
+  const vengeance = knownModel('model.fbx');
+  assert(!!vengeance && vengeance.name === 'USS Vengeance', 'model.fbx is on record as the USS Vengeance');
+  assert(/Dreadnought/.test(vengeance.class), 'and as a Dreadnought-class hull');
+  assert(vengeance.ready === false, 'and is marked unreadable until it is exported');
+  assert(!!identityBlock(vengeance) && /Vengeance/.test(identityBlock(vengeance)), 'its identity block prints');
+  assert(knownModel('alien-spaceship-starship-3d-model-abc_Material_01_Normal.png'), 'wildcard entries match their whole download');
+  assert(knownModel('totally-unknown.obj') === null, 'unknown files stay unknown');
+
+  const dread = db.hulls.find((h) => /Dreadnought/.test(h.name));
+  assert(!!dread && dread.length === 1450, 'the class database knows the Dreadnought-class length');
+
+  let fbxErr = '';
+  try { reportFile('/tmp/model.fbx'); } catch (e) { fbxErr = String(e.message); }
+  assert(/Vengeance/.test(fbxErr) && /export/.test(fbxErr), 'an unreadable but known FBX is named, then told how to export');
 
   let blendErr = '';
   try { reportFile('/tmp/nope.blend'); } catch (e) { blendErr = String(e.message); }

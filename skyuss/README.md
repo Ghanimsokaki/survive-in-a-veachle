@@ -194,9 +194,27 @@ export mean nothing. With `--length <m>` it adds a size score. Names inside the 
 stronger evidence when they exist — a mesh called `Saucer_Section` tells you more than any
 bounding box.
 
-Supported: **OBJ** and **GLB** (`.gltf` without its `.bin` cannot be measured). `.blend` and
-`.fbx` are refused with a message telling you to export first — this repo has no Blender and no
-FBX converter, so a `.blend` is unreadable here by design, not by accident.
+**Some files are named even when they cannot be read.** `data/known-models.json` records the
+identity of the player's own downloads, so an unnamed export is never a mystery twice:
+
+```bash
+npm run report:hull -- --known
+```
+
+```
+known files ── skyuss/data/known-models.json
+  model.fbx                                    USS Vengeance (Dreadnought-class) · ~1450 m
+  NCC1701D_FIND.blend                          USS Enterprise NCC-1701-D (Galaxy-class) · ~641 m
+  USS Enterprise NCC-1701.zip                  USS Enterprise NCC-1701 (Constitution-class) · ~289 m
+  ...
+```
+
+Point `--in` at a `.fbx` or `.blend` from that list and it prints the identity plus the exact
+export step needed, instead of just failing.
+
+Supported geometry: **OBJ** and **GLB** (`.gltf` without its `.bin` cannot be measured). `.blend`
+and `.fbx` are refused with a message telling you to export first — this repo has no Blender and
+no FBX converter, so those formats are unreadable here by design, not by accident.
 
 ```bash
 node skyuss/tools/model-report.mjs --in model.obj --json   # machine-readable
@@ -347,7 +365,7 @@ skyuss/
   js/main.js          renderer, cloud sea, camera rig, input, scene sync, VFX
   js/audio.js         synthesised WebAudio (no assets)
   js/touch.js         thumb-stick / look-pad / action buttons for phones
-tools/skyuss-smoke.mjs   headless test: 279 assertions, no GPU required
+tools/skyuss-smoke.mjs   headless test: 325 assertions, no GPU required
 ```
 
 The split is deliberate: **`sim.js` never imports Three.js and `main.js` never owns game
@@ -369,7 +387,7 @@ Useful because jsdom has no WebGL: this is how the hull proportions get reviewed
 ## Tests
 
 ```bash
-npm run smoke:skyuss        # 279 assertions: sim + streaming + meshes, no GPU
+npm run smoke:skyuss        # 325 assertions: sim + streaming + meshes, no GPU
 npm run smoke:skyuss:boot   # 83 assertions: boots the real renderer headlessly
 npm run check               # syntax-check both games
 npm run test:all            # every suite in this repo

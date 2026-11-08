@@ -1,0 +1,75 @@
+{
+  "_note": "Identity of files in the player's own model library. The models themselves are not in this repo (bought/fan art \u2014 see skyuss/assets/premium/README.md), but knowing which file is which ship is data worth keeping: tools/model-report.mjs prints the matching entry before it analyses anything, so an unnamed export is never a mystery twice.",
+  "files": [
+    {
+      "match": "model.fbx",
+      "name": "USS Vengeance",
+      "class": "Dreadnought-class",
+      "length": 1450,
+      "origin": "Star Trek Into Darkness (2013)",
+      "licence": "unverified fan model \u2014 keep out of the repo, drop folder only",
+      "ready": false,
+      "note": "Binary FBX. This repo has no FBX reader: export OBJ or GLB from Blender, then run tools/import-hull.mjs."
+    },
+    {
+      "match": "NCC1701D_FIND.blend",
+      "name": "USS Enterprise NCC-1701-D",
+      "class": "Galaxy-class",
+      "length": 641,
+      "origin": "Star Trek: The Next Generation",
+      "licence": "CC0 1.0, fan art, non-commercial (Blend Swap #93945)",
+      "ready": false,
+      "note": ".blend only \u2014 no Blender here, so it must be exported to OBJ/GLB."
+    },
+    {
+      "match": "USS Enterprise NCC-1701.zip",
+      "name": "USS Enterprise NCC-1701",
+      "class": "Constitution-class",
+      "length": 289,
+      "origin": "Star Trek (TOS)",
+      "licence": "CC BY 3.0, fan art, non-commercial, credit the author (Blend Swap #91690)",
+      "ready": false,
+      "note": "Zip of a .blend; the uploader quotes 344 m for this particular build, so it sits between two classes."
+    },
+    {
+      "match": "USS Enterprise NCC-1701-I  Odin Class.blend",
+      "name": "USS Enterprise NCC-1701-I",
+      "class": "Odin-class (fan design)",
+      "length": null,
+      "origin": "fan art",
+      "licence": "CC BY-NC, fan art (Blend Swap #25654, captaincorpse172)",
+      "ready": false,
+      "note": "Fan design with no canon length \u2014 the report can only match its proportions."
+    },
+    {
+      "match": "enterprise blend.blend",
+      "name": "unidentified Enterprise export",
+      "class": "unknown",
+      "length": null,
+      "origin": "unknown",
+      "licence": "unverified",
+      "ready": false,
+      "note": "Owner says this one is nothing / not needed. Kept on file only so nobody re-investigates it."
+    },
+    {
+      "match": "starship+3d+model.zip",
+      "name": "unidentified starship pack",
+      "class": "unknown",
+      "length": null,
+      "origin": "store / aggregator download (the + separated slug)",
+      "licence": "unverified \u2014 store licences usually forbid redistribution, keep out of the repo",
+      "ready": false,
+      "note": "Owner says this one is nothing / not needed. Kept on file only so nobody re-investigates it."
+    },
+    {
+      "match": "alien-spaceship-starship-*",
+      "name": "unknown alien spaceship",
+      "class": "unknown",
+      "length": null,
+      "origin": "store export \u2014 only the PBR texture set survived the download",
+      "licence": "unverified",
+      "ready": false,
+      "note": "Owner says this one is nothing / not needed. Kept on file only so nobody re-investigates it."
+    }
+  ]
+}
