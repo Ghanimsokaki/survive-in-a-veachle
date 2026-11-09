@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <title>SKYUSS — an ocean of clouds</title>
 <meta name="description" content="Pilot a modular USS Enterprise across an endless sea of clouds, build sky fortresses, and survive siege fleets." />
+<!-- Vercel can serve this directory at /skyuss without a trailing slash.
+     Anchor relative resources in the game directory in both URL forms. -->
+<base href="./" />
+<script>
+  if (location.pathname.endsWith('/skyuss')) {
+    document.querySelector('base').href = location.pathname + '/';
+  }
+</script>
 <link rel="stylesheet" href="css/sky.css" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛸</text></svg>" />
 </head>

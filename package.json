@@ -12,14 +12,15 @@
     "shots": "node tools/shot.mjs",
     "smoke": "node tools/smoke.mjs",
     "smoke:skyuss": "node tools/skyuss-smoke.mjs",
-    "test:all": "node tools/smoke.mjs && node tools/skyuss-smoke.mjs && node tools/skyuss-boot.mjs",
+    "test:all": "node tools/smoke.mjs && node tools/skyuss-smoke.mjs && node tools/skyuss-boot.mjs && npm run test:skyuss:url",
     "smoke:skyuss:boot": "node tools/skyuss-boot.mjs",
     "shots:skyuss": "node skyuss/tools/ship-preview.mjs --out shots/skyuss-ship.png && node skyuss/tools/world-preview.mjs --out shots/skyuss-world.png && node skyuss/tools/hull-preview.mjs --out shots/aurora-class.png",
     "preview:hull": "node skyuss/tools/hull-preview.mjs --out shots/aurora-class.png",
     "report:hull": "node skyuss/tools/model-report.mjs",
     "fetch:models": "node skyuss/tools/fetch-models.mjs",
     "fetch:models:list": "node skyuss/tools/fetch-models.mjs --list",
-    "deploy:check": "node tools/deploy-check.mjs"
+    "deploy:check": "node tools/deploy-check.mjs",
+    "test:skyuss:url": "node tools/skyuss-url-test.mjs"
   },
   "devDependencies": {
     "@napi-rs/canvas": "^1.1.0",

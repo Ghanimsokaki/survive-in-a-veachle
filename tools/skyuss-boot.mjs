@@ -5,7 +5,8 @@ import { createCanvas } from '@napi-rs/canvas';
 import fs from 'node:fs';
 
 const html = fs.readFileSync(new URL('../skyuss/index.html', import.meta.url), 'utf8');
-const dom = new JSDOM(html, { url: 'http://localhost/skyuss/', pretendToBeVisual: true });
+// Exercise the slashless Vercel URL that previously broke resource resolution.
+const dom = new JSDOM(html, { url: 'http://localhost/skyuss?touch=1', pretendToBeVisual: true, runScripts: 'dangerously' });
 const { window } = dom;
 global.window = window;
 global.document = window.document;
@@ -134,6 +135,7 @@ globalThis.fetch = async (url) => {
   return { ok: false, status: 404, text: async () => '' };
 };
 
+assert(document.baseURI === 'http://localhost/skyuss/', 'the slashless game URL resolves resources inside SKYUSS');
 await import('../skyuss/js/main.js');
 assert(true, 'main.js boots with a WebGL context (renderer, shaders, scene)');
 
@@ -142,6 +144,10 @@ await frames();
 const hud = document.getElementById('hud');
 assert(!hud.classList.contains('hidden'), 'LAUNCH starts the run and shows the HUD');
 assert(drew > 50, `the scene actually draws (${drew} draw calls)`);
+document.querySelector('#sideRail [data-act="help"]').dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true }));
+assert(!document.getElementById('panelHelp').classList.contains('hidden'), 'tapping Help opens the flight manual');
+document.querySelector('#panelHelp [data-action="close"]').dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true }));
+assert(document.getElementById('panelLayer').classList.contains('hidden'), 'tapping the close button dismisses Help');
 
 // keyboard: thrust + turn, then panels
 const key = (code, type = 'keydown') => window.dispatchEvent(new window.KeyboardEvent(type, { code, key: code, bubbles: true }));
