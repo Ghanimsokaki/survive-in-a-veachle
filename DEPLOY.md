@@ -59,7 +59,7 @@ The three failure modes it is looking for: **missing** (referenced but never com
 fetched from another host, which is one outage away from a blank screen). Exit code is non-zero
 if anything is wrong, so it can gate a deploy. `--json` gives the same thing machine-readable.
 
-`npm run test:all` (smoke 156 + SKYUSS 452 + boot 106 assertions) runs the same crawl as one of
+`npm run test:all` (smoke 156 + SKYUSS 453 + boot 109 assertions and URL resolution checks) runs the same crawl as one of
 its checks, so a broken path fails the test suite too.
 
 ## Things that behave differently once deployed
